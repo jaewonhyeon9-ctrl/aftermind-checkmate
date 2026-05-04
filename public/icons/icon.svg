@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="110" fill="#0a0a0a"/>
+
+  <!-- A 마크 -->
+  <g transform="translate(256 200)" fill="#ffffff">
+    <!-- 두꺼운 A 외곽 -->
+    <path d="M -62 70 L -10 -68 Q 0 -78 10 -68 L 62 70 L 32 70 L 22 42 L -22 42 L -32 70 Z M -12 18 L 12 18 L 0 -22 Z"/>
+    <!-- A 옆 작은 콤마 -->
+    <circle cx="80" cy="60" r="9"/>
+    <path d="M 84 67 Q 84 80 70 86" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- GROUND 워드마크 -->
+  <text x="256" y="386"
+        text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-weight="800"
+        font-size="58"
+        letter-spacing="10"
+        fill="#ffffff">GROUND</text>
+</svg>

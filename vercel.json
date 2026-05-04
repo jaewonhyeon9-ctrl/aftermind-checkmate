@@ -1,0 +1,29 @@
+{
+  "regions": ["icn1"],
+  "crons": [
+    {
+      "path": "/api/cron/daily-reminder",
+      "schedule": "0 13 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(login|register|today|feed|operator|me|entry/.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-cache, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg-deep: #04060f;
+  --bg-base: #0a0e1f;
+  --bg-elev: #11172e;
+  --bg-elev2: #18203f;
+  --line: #1e2a55;
+  --line-strong: #2d3d72;
+  --fg: #e7ecff;
+  --fg-muted: #8895c0;
+  --fg-dim: #5b6691;
+  --accent-cyan: #00e0ff;
+  --accent-violet: #a155ff;
+  --accent-magenta: #ff3df0;
+  --accent-lime: #b1ff42;
+  --accent-amber: #ffb84a;
+}
+
+html, body {
+  background: var(--bg-deep);
+  color: var(--fg);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Pretendard Variable", "Pretendard", "Noto Sans KR", "Malgun Gothic",
+    sans-serif;
+  background:
+    radial-gradient(800px 500px at 80% -10%, rgba(161, 85, 255, 0.18), transparent 60%),
+    radial-gradient(700px 500px at 0% 110%, rgba(0, 224, 255, 0.12), transparent 60%),
+    var(--bg-deep);
+  min-height: 100dvh;
+}
+
+/* 사이버 그리드 배경 (전체 fixed) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0, 224, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 224, 255, 0.045) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: -1px -1px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+}
+
+/* 카드 공통 (cyber-card) */
+.cy-card {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)) ,
+    var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 12px 40px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+}
+
+.cy-card-glow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(0, 224, 255, 0.25), rgba(161, 85, 255, 0.25));
+  z-index: -1;
+  filter: blur(14px);
+  opacity: 0.55;
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg px-3 py-2.5 text-sm transition;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--fg);
+    border: 1px solid var(--line);
+  }
+  .input::placeholder { color: var(--fg-dim); }
+  .input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px rgba(0, 224, 255, 0.12), 0 0 14px rgba(0, 224, 255, 0.18);
+  }
+
+  .btn-primary {
+    @apply w-full rounded-lg py-3 text-sm font-semibold transition;
+    color: #04060f;
+    background: linear-gradient(135deg, #00e0ff 0%, #5cb5ff 50%, #a155ff 100%);
+    box-shadow:
+      0 0 0 1px rgba(0, 224, 255, 0.4) inset,
+      0 6px 24px rgba(0, 224, 255, 0.25),
+      0 6px 30px rgba(161, 85, 255, 0.18);
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:disabled { opacity: 0.45; }
+
+  .btn-ghost {
+    @apply rounded-lg py-2.5 text-sm font-medium transition;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+  }
+  .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--line-strong); }
+
+  .neon-text-cyan { color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0, 224, 255, 0.5); }
+  .neon-text-violet { color: var(--accent-violet); text-shadow: 0 0 10px rgba(161, 85, 255, 0.5); }
+  .neon-text-lime { color: var(--accent-lime); text-shadow: 0 0 10px rgba(177, 255, 66, 0.5); }
+
+  .mono { font-family: "JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", Menlo, monospace; }
+}
+
+/* 진입 애니메이션 */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+main { animation: fadeUp 0.32s ease-out; }
+
+/* 스캔라인 (선택적) */
+@keyframes scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* SO LATE 오버레이 */
+@keyframes soLateFade {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes soLateShake {
+  0%, 100% { transform: translate(0, 0) rotate(-3deg); }
+  20%      { transform: translate(-10px, 4px) rotate(-3deg); }
+  40%      { transform: translate(10px, -4px) rotate(-3deg); }
+  60%      { transform: translate(-7px, 2px) rotate(-3deg); }
+  80%      { transform: translate(7px, -2px) rotate(-3deg); }
+}
+.so-late-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  pointer-events: none;
+  background: rgba(255, 61, 240, 0.06);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: soLateFade 1.7s ease-out forwards;
+}
+.so-late-text {
+  font-size: clamp(64px, 16vw, 160px);
+  font-weight: 900;
+  color: #ff3df0;
+  text-shadow:
+    0 0 24px rgba(255, 61, 240, 0.95),
+    0 0 60px rgba(255, 61, 240, 0.55),
+    0 0 120px rgba(255, 61, 240, 0.3);
+  letter-spacing: 6px;
+  font-style: italic;
+  font-family: -apple-system, "JetBrains Mono", monospace;
+  animation: soLateShake 0.16s ease-in-out 8;
+}
+.so-late-sub {
+  font-size: clamp(14px, 3.5vw, 22px);
+  font-weight: 700;
+  color: #ffb84a;
+  letter-spacing: 4px;
+  text-shadow: 0 0 10px rgba(255, 184, 74, 0.7);
+}
+
+/* ==========================================================================
+ * 다크/사이버 글로벌 오버라이드
+ * 기존 Tailwind light 컬러 클래스를 자동으로 다크 톤으로 매핑.
+ * 컴포넌트 파일을 일일이 수정하지 않고 톤만 한 번에 전환.
+ * ========================================================================== */
+.bg-white { background-color: var(--bg-elev) !important; }
+.bg-slate-50 { background-color: rgba(255,255,255,0.025) !important; }
+.bg-slate-50\/50 { background-color: rgba(255,255,255,0.02) !important; }
+.bg-slate-50\/95 { background-color: rgba(10,14,31,0.95) !important; }
+.bg-slate-100 { background-color: rgba(255,255,255,0.05) !important; }
+
+.bg-amber-50 { background-color: rgba(255,184,74,0.08) !important; }
+.bg-amber-100 { background-color: rgba(255,184,74,0.16) !important; }
+.bg-emerald-50 { background-color: rgba(177,255,66,0.08) !important; }
+.bg-emerald-100 { background-color: rgba(177,255,66,0.16) !important; }
+.bg-rose-50 { background-color: rgba(255,61,240,0.08) !important; }
+.bg-red-50 { background-color: rgba(255,61,240,0.08) !important; }
+
+.border-slate-100, .border-slate-200, .border-slate-300 { border-color: var(--line) !important; }
+.border-slate-200\/60, .border-slate-200\/70 { border-color: var(--line) !important; }
+.border-amber-100, .border-amber-200 { border-color: rgba(255,184,74,0.3) !important; }
+.border-emerald-100, .border-emerald-200 { border-color: rgba(177,255,66,0.3) !important; }
+.border-rose-200 { border-color: rgba(255,61,240,0.3) !important; }
+.border-red-200 { border-color: rgba(255,107,140,0.4) !important; }
+
+.divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--line) !important;
+}
+
+/* 텍스트 톤 */
+.text-slate-900 { color: var(--fg) !important; }
+.text-slate-800 { color: var(--fg) !important; }
+.text-slate-700 { color: var(--fg) !important; }
+.text-slate-600 { color: var(--fg-muted) !important; }
+.text-slate-500 { color: var(--fg-muted) !important; }
+.text-slate-400 { color: var(--fg-dim) !important; }
+.text-slate-300 { color: var(--fg-dim) !important; }
+
+/* 강조 색을 네온화 */
+.text-emerald-700, .text-emerald-600 { color: var(--accent-lime) !important; text-shadow: 0 0 8px rgba(177,255,66,0.35); }
+.text-blue-700, .text-blue-600 { color: var(--accent-cyan) !important; text-shadow: 0 0 8px rgba(0,224,255,0.35); }
+.text-amber-700, .text-amber-800, .text-amber-900 { color: var(--accent-amber) !important; }
+.text-rose-700 { color: var(--accent-magenta) !important; text-shadow: 0 0 8px rgba(255,61,240,0.35); }
+.text-red-700, .text-red-600 { color: #ff7d9b !important; }
+
+/* 슬레이트 어두운 배경(원래 다크였던 것)은 elev2로 매핑 */
+.bg-slate-900 { background-color: var(--bg-elev2) !important; }
+.bg-slate-700 { background-color: var(--bg-elev) !important; }
+
+/* 그라데이션 버튼/카드 — 시안/바이올렛 네온으로 */
+.from-slate-900,
+.via-slate-800,
+.to-slate-700 {
+  --tw-gradient-from: #0a0e1f !important;
+  --tw-gradient-via: #11172e !important;
+  --tw-gradient-to: #18203f !important;
+}
+
+.bg-gradient-to-br.from-slate-900.to-slate-700 {
+  background-image: linear-gradient(135deg, #00e0ff 0%, #5cb5ff 50%, #a155ff 100%) !important;
+  color: #04060f !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 224, 255, 0.3) inset,
+    0 6px 24px rgba(0, 224, 255, 0.25),
+    0 0 30px rgba(161, 85, 255, 0.18) !important;
+}
+
+/* 고스트 버튼 */
+.border-slate-300 { border-color: var(--line-strong) !important; }
+
+/* 입력 시 placeholder */
+.placeholder\:text-slate-400::placeholder { color: var(--fg-dim) !important; }
+
+/* sticky 헤더가 light bg를 쓰는 경우 */
+.bg-slate-50\/90, .bg-white\/70, .bg-white\/80 {
+  background-color: rgba(10,14,31,0.7) !important;
+}

@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  OPERATOR
+  MEMBER
+}
+
+enum AssignmentScope {
+  ALL
+  INDIVIDUAL
+}
+
+enum PlanScope {
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum ContributionType {
+  SKILL
+  CLASS
+}
+
+enum ContributionStatus {
+  OPEN
+  CLOSED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+}
+
+enum CoinReason {
+  ISSUE
+  TRANSFER
+  CONTRIBUTION_REWARD
+  CLASS_REWARD
+}
+
+model User {
+  id         String   @id @default(uuid())
+  authId     String   @unique
+  email      String   @unique
+  name       String
+  role       UserRole @default(MEMBER)
+  kakaoPhone String?
+  isActive   Boolean  @default(true)
+  finalGoal  String?  // 에프터마인드 2기 최종 목표
+  timezone   String   @default("Asia/Seoul")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  dailyEntries           DailyEntry[]
+  createdTasks           AssignedTask[]           @relation("TaskCreator")
+  taskCompletions        AssignedTaskCompletion[] @relation("TaskAssignee")
+  pushSubscriptions      PushSubscription[]
+  periodPlans            PeriodPlan[]
+  transactions           Transaction[]
+  contributionPosts      ContributionPost[]        @relation("ContributionAuthor")
+  applications           ContributionApplication[] @relation("Applicant")
+  coinsSent              CoinLedger[]              @relation("CoinSender")
+  coinsReceived          CoinLedger[]              @relation("CoinReceiver")
+
+  @@index([role])
+}
+
+model Transaction {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      TransactionType
+  category  String
+  amount    Int             // 원 단위 정수
+  date      DateTime        @db.Date
+  note      String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId, date])
+}
+
+model PeriodPlan {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope     PlanScope
+  periodKey String    // "2026-W18", "2026-04", "2026"
+  content   String?
+  goals     String[]  @default([])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([userId, scope, periodKey])
+  @@index([scope, periodKey])
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  authKey   String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model DailyEntry {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+
+  wakeUpTime    String?
+  workStartTime String?
+
+  smallWin      String?
+  insight       String?
+  gratitude     String?
+
+  morningPlan   String?
+  afternoonPlan String?
+  eveningPlan   String?
+  must3         String[]
+  nice3         String[]
+  variables     String?
+  oneThing      String?
+  cheerMessage  String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  timelineTasks TimelineTask[]
+  mustChecks    MustCheck[]
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model TimelineTask {
+  id           String     @id @default(uuid())
+  dailyEntryId String
+  dailyEntry   DailyEntry @relation(fields: [dailyEntryId], references: [id], onDelete: Cascade)
+
+  title       String
+  startTime   String
+  dueTime     String
+  completedAt DateTime?
+  isOnTime    Boolean?
+  memo        String?
+
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([dailyEntryId, order])
+}
+
+model MustCheck {
+  id           String     @id @default(uuid())
+  dailyEntryId String
+  dailyEntry   DailyEntry @relation(fields: [dailyEntryId], references: [id], onDelete: Cascade)
+
+  mustIndex   Int
+  mustText    String
+  isCompleted Boolean @default(false)
+  reason      String?
+  memo        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dailyEntryId, mustIndex])
+}
+
+model AssignedTask {
+  id          String          @id @default(uuid())
+  creatorId   String
+  creator     User            @relation("TaskCreator", fields: [creatorId], references: [id])
+  scope       AssignmentScope
+  title       String
+  description String?
+  videoUrl    String?         // 필수 시청 영상 링크 (운영자가 첨부)
+  attachments String[]        @default([]) // 추가 참고 링크
+  dueDate     DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  completions AssignedTaskCompletion[]
+
+  @@index([dueDate])
+}
+
+model AssignedTaskCompletion {
+  id          String       @id @default(uuid())
+  taskId      String
+  task        AssignedTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation("TaskAssignee", fields: [userId], references: [id], onDelete: Cascade)
+
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  memo        String?
+
+  @@unique([taskId, userId])
+  @@index([userId, isCompleted])
+}
+
+model ContributionPost {
+  id            String              @id @default(uuid())
+  authorId      String
+  author        User                @relation("ContributionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  type          ContributionType
+  title         String
+  description   String?
+  coinReward    Int                 @default(0)
+  maxApplicants Int?
+  deadline      DateTime?
+  status        ContributionStatus  @default(OPEN)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  applications  ContributionApplication[]
+  coinLedger    CoinLedger[]
+
+  @@index([type, status])
+  @@index([authorId])
+}
+
+model ContributionApplication {
+  id          String            @id @default(uuid())
+  postId      String
+  post        ContributionPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   User              @relation("Applicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  message     String?
+  status      ApplicationStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([postId, applicantId])
+  @@index([applicantId])
+  @@index([postId, status])
+}
+
+model CoinLedger {
+  id            String            @id @default(uuid())
+  fromUserId    String?
+  fromUser      User?             @relation("CoinSender", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUserId      String
+  toUser        User              @relation("CoinReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  amount        Int
+  reason        CoinReason
+  memo          String?
+  relatedPostId String?
+  relatedPost   ContributionPost? @relation(fields: [relatedPostId], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+
+  @@index([toUserId, createdAt])
+  @@index([fromUserId, createdAt])
+  @@index([createdAt])
+}
