@@ -263,6 +263,34 @@ export async function deleteTimelineTask(taskId: string) {
   revalidatePath("/feed");
 }
 
+const updateTimelineSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string().min(1).max(80),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  dueTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+export async function updateTimelineTask(input: z.infer<typeof updateTimelineSchema>) {
+  const user = await requireUser();
+  const parsed = updateTimelineSchema.parse(input);
+  const task = await prisma.timelineTask.findUnique({
+    where: { id: parsed.taskId },
+    include: { dailyEntry: { select: { userId: true } } },
+  });
+  if (!task || task.dailyEntry.userId !== user.id) throw new Error("권한 없음");
+
+  await prisma.timelineTask.update({
+    where: { id: parsed.taskId },
+    data: {
+      title: parsed.title.trim(),
+      startTime: parsed.startTime,
+      dueTime: parsed.dueTime,
+    },
+  });
+  revalidatePath("/today");
+  revalidatePath("/feed");
+}
+
 const mustCheckSchema = z.object({
   mustCheckId: z.string().uuid(),
   isCompleted: z.boolean(),

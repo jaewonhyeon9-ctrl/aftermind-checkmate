@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ApplicationActions } from "./ApplicationActions";
+import { MyApplicationMessage } from "./MyApplicationMessage";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,36 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
               {post.description}
             </p>
           )}
+
+          {post.type === "CLASS" && (post.scheduledAt || post.scheduleNote) && (
+            <div
+              className="rounded-lg p-3 space-y-1"
+              style={{
+                background: "rgba(177,255,66,0.08)",
+                border: "1px solid rgba(177,255,66,0.2)",
+              }}
+            >
+              <p className="text-[10px] font-semibold tracking-wider uppercase" style={{ color: "var(--accent-lime)" }}>
+                ⏰ 수업 일정
+              </p>
+              {post.scheduledAt && (
+                <p className="text-sm font-bold" style={{ color: "var(--accent-lime)" }}>
+                  {(() => {
+                    const d = post.scheduledAt;
+                    const dow = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${dow}) ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                  })()}
+                </p>
+              )}
+              {post.scheduleNote && (
+                <p className="text-xs whitespace-pre-wrap" style={{ color: "var(--fg-dim)" }}>
+                  {post.scheduleNote}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-3 text-xs" style={{ color: "var(--fg-muted)" }}>
             {post.coinReward > 0 && (
               <span className="inline-flex items-center gap-1" style={{ color: "var(--accent-lime)" }}>
@@ -102,25 +133,24 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
         {/* 본인 신청 상태 (작성자 아닌 경우) */}
         {!isAuthor && myApp && (
           <div
-            className="rounded-xl p-3 text-sm"
+            className="rounded-xl p-3 text-sm space-y-2"
             style={{
               background: "rgba(0,224,255,0.08)",
               border: "1px solid rgba(0,224,255,0.2)",
-              color: "var(--accent-cyan)",
             }}
           >
-            <p className="font-semibold">내 신청 상태</p>
-            <p className="text-xs mt-0.5">
+            <p className="font-semibold" style={{ color: "var(--accent-cyan)" }}>내 신청 상태</p>
+            <p className="text-xs" style={{ color: "var(--accent-cyan)" }}>
               {myApp.status === "PENDING" && "⏳ 대기 중"}
               {myApp.status === "ACCEPTED" && "✓ 승인됨"}
               {myApp.status === "REJECTED" && "✗ 반려됨"}
               {myApp.status === "COMPLETED" && "🎉 완료 (보상 수령 완료)"}
             </p>
-            {myApp.message && (
-              <p className="text-xs mt-1.5" style={{ color: "var(--fg-dim)" }}>
-                "{myApp.message}"
-              </p>
-            )}
+            <MyApplicationMessage
+              applicationId={myApp.id}
+              initialMessage={myApp.message}
+              status={myApp.status}
+            />
           </div>
         )}
 

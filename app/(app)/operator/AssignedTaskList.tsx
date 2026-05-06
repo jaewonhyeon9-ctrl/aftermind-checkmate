@@ -1,10 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Trash2, Play, Link as LinkIcon } from "lucide-react";
-import { deleteAssignedTask } from "./actions";
+import { Trash2, Play, Link as LinkIcon, Pencil, Plus, X } from "lucide-react";
+import { deleteAssignedTask, updateAssignedTask } from "./actions";
 import { Linkify } from "@/components/Linkify";
 
 type Task = {
@@ -45,6 +45,7 @@ export function AssignedTaskList({ tasks, myId }: { tasks: Task[]; myId: string 
 function TaskCard({ task, canDelete }: { task: Task; canDelete: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const total = task.completions.length;
   const done = task.completions.filter((c) => c.isCompleted).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -55,6 +56,17 @@ function TaskCard({ task, canDelete }: { task: Task; canDelete: boolean }) {
       await deleteAssignedTask(task.id);
       router.refresh();
     });
+  }
+
+  if (editing) {
+    return (
+      <li>
+        <EditTaskCard task={task} onCancel={() => setEditing(false)} onDone={() => {
+          setEditing(false);
+          router.refresh();
+        }} />
+      </li>
+    );
   }
 
   return (
@@ -114,15 +126,26 @@ function TaskCard({ task, canDelete }: { task: Task; canDelete: boolean }) {
           )}
         </div>
         {canDelete && (
-          <button
-            type="button"
-            onClick={remove}
-            disabled={pending}
-            className="p-1 text-slate-400 hover:text-red-600"
-            aria-label="삭제"
-          >
-            <Trash2 size={14} />
-          </button>
+          <div className="flex items-start gap-0.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={pending}
+              className="p-1 text-slate-400 hover:text-slate-700"
+              aria-label="수정"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={remove}
+              disabled={pending}
+              className="p-1 text-slate-400 hover:text-red-600"
+              aria-label="삭제"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         )}
       </header>
 
@@ -157,5 +180,167 @@ function TaskCard({ task, canDelete }: { task: Task; canDelete: boolean }) {
         </ul>
       </div>
     </li>
+  );
+}
+
+function EditTaskCard({
+  task,
+  onCancel,
+  onDone,
+}: {
+  task: Task;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [videoUrl, setVideoUrl] = useState(task.videoUrl ?? "");
+  const [attachments, setAttachments] = useState<string[]>(task.attachments);
+  const [attachmentInput, setAttachmentInput] = useState("");
+  const [dueDate, setDueDate] = useState(
+    task.dueDate ? task.dueDate.toISOString().slice(0, 10) : ""
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function addAttachment() {
+    const url = attachmentInput.trim();
+    if (!url) return;
+    if (!/^https?:\/\//.test(url)) {
+      setError("링크는 http:// 또는 https://로 시작해야 해요");
+      return;
+    }
+    setAttachments((p) => [...p, url]);
+    setAttachmentInput("");
+    setError(null);
+  }
+  function removeAttachment(i: number) {
+    setAttachments((p) => p.filter((_, idx) => idx !== i));
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!title.trim()) {
+      setError("제목을 입력해주세요");
+      return;
+    }
+    if (videoUrl && !/^https?:\/\//.test(videoUrl)) {
+      setError("영상 링크는 http:// 또는 https://로 시작해야 해요");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await updateAssignedTask({
+          taskId: task.id,
+          title: title.trim(),
+          description: description.trim() || null,
+          videoUrl: videoUrl.trim() || null,
+          attachments,
+          dueDate: dueDate || null,
+        });
+        onDone();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "수정 실패");
+      }
+    });
+  }
+
+  return (
+    <form onSubmit={submit} className="rounded-2xl bg-amber-50 border border-amber-200 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-amber-900">과제 수정</h4>
+        <button type="button" onClick={onCancel} className="text-amber-600 hover:text-amber-900">
+          <X size={14} />
+        </button>
+      </div>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="과제 제목"
+        className="input bg-white"
+      />
+      <textarea
+        rows={2}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="상세 설명 (선택)"
+        className="input bg-white"
+      />
+      <label className="block">
+        <span className="text-xs text-slate-500 inline-flex items-center gap-1">
+          <Play size={11} className="text-rose-500" /> 필수 시청 영상 링크
+        </span>
+        <input
+          type="url"
+          value={videoUrl}
+          onChange={(e) => setVideoUrl(e.target.value)}
+          placeholder="https://..."
+          className="input mt-1 bg-white"
+        />
+      </label>
+      <div>
+        <span className="text-xs text-slate-500 inline-flex items-center gap-1">
+          <LinkIcon size={11} className="text-blue-500" /> 추가 참고 링크
+        </span>
+        {attachments.length > 0 && (
+          <ul className="mt-1 space-y-1">
+            {attachments.map((url, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-[11px] rounded-md bg-white border border-slate-200 px-2 py-1">
+                <span className="flex-1 truncate text-slate-700">{url}</span>
+                <button type="button" onClick={() => removeAttachment(i)} className="p-0.5 text-slate-400 hover:text-red-600" aria-label="제거">
+                  <X size={11} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-1 flex gap-1.5">
+          <input
+            type="url"
+            value={attachmentInput}
+            onChange={(e) => setAttachmentInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addAttachment();
+              }
+            }}
+            placeholder="https://..."
+            className="input flex-1 bg-white"
+          />
+          <button type="button" onClick={addAttachment} className="px-3 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 inline-flex items-center gap-1">
+            <Plus size={12} /> 추가
+          </button>
+        </div>
+      </div>
+      <label className="block">
+        <span className="text-xs text-slate-500">마감일</span>
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="input mt-1 bg-white"
+        />
+      </label>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="flex-1 rounded-lg bg-slate-900 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {pending ? "저장 중…" : "저장"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600"
+        >
+          취소
+        </button>
+      </div>
+    </form>
   );
 }

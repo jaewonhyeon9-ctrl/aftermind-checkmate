@@ -38,6 +38,8 @@ export default async function ClassPage() {
       coinReward: p.coinReward,
       maxApplicants: p.maxApplicants,
       deadline: p.deadline,
+      scheduledAt: p.scheduledAt,
+      scheduleNote: p.scheduleNote,
       status: p.status,
       applicationsCount: accepted,
       pendingCount: pending,

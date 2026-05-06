@@ -10,7 +10,9 @@ type EditInitial = {
   description: string | null;
   coinReward: number;
   maxApplicants: number | null;
-  deadline: string | null; // YYYY-MM-DD
+  deadline: string | null;     // YYYY-MM-DD
+  scheduledAt: string | null;  // YYYY-MM-DDTHH:MM
+  scheduleNote: string | null;
 };
 
 type Props =
@@ -29,6 +31,8 @@ export function PostForm(props: Props) {
     initial?.maxApplicants != null ? String(initial.maxApplicants) : ""
   );
   const [deadline, setDeadline] = useState(initial?.deadline ?? "");
+  const [scheduledAt, setScheduledAt] = useState(initial?.scheduledAt ?? "");
+  const [scheduleNote, setScheduleNote] = useState(initial?.scheduleNote ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -46,6 +50,8 @@ export function PostForm(props: Props) {
           coinReward: Math.max(0, parseInt(coinReward) || 0),
           maxApplicants: maxApplicants ? Math.max(1, parseInt(maxApplicants)) : null,
           deadline: deadline || null,
+          scheduledAt: props.type === "CLASS" && scheduledAt ? scheduledAt : null,
+          scheduleNote: props.type === "CLASS" ? scheduleNote.trim() || null : null,
         };
         if (isEdit && initial) {
           await updatePost({ postId: initial.postId, ...data });
@@ -57,6 +63,8 @@ export function PostForm(props: Props) {
           setCoinReward("0");
           setMaxApplicants("");
           setDeadline("");
+          setScheduledAt("");
+          setScheduleNote("");
           setOpen(false);
         }
       } catch (e) {
@@ -172,7 +180,7 @@ export function PostForm(props: Props) {
       </div>
 
       <label className="text-xs block" style={{ color: "var(--fg-muted)" }}>
-        마감일 (선택)
+        모집 마감일 (선택)
         <input
           type="date"
           value={deadline}
@@ -185,6 +193,41 @@ export function PostForm(props: Props) {
           }}
         />
       </label>
+
+      {props.type === "CLASS" && (
+        <>
+          <label className="text-xs block" style={{ color: "var(--fg-muted)" }}>
+            ⏰ 수업 시작 시간 (선택 — 미정이면 비워두세요)
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: "rgba(10,14,31,0.6)",
+                border: "1px solid var(--line)",
+                color: "var(--fg)",
+              }}
+            />
+          </label>
+          <label className="text-xs block" style={{ color: "var(--fg-muted)" }}>
+            일정 메모 (선택)
+            <input
+              type="text"
+              placeholder="예: 참여자와 조율 후 결정 / Zoom 링크는 등록 후 공유"
+              value={scheduleNote}
+              onChange={(e) => setScheduleNote(e.target.value)}
+              maxLength={200}
+              className="w-full mt-1 px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: "rgba(10,14,31,0.6)",
+                border: "1px solid var(--line)",
+                color: "var(--fg)",
+              }}
+            />
+          </label>
+        </>
+      )}
 
       {error && (
         <p className="text-xs text-rose-400">{error}</p>

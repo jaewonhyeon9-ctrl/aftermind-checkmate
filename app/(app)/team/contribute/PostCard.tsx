@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Coins, Users, Clock, Pencil } from "lucide-react";
+import { Coins, Users, Clock, Pencil, Calendar } from "lucide-react";
 import { applyToPost, cancelApplication, closePost, reopenPost, deletePost } from "../actions";
 import { PostForm } from "./PostForm";
 
@@ -16,6 +16,8 @@ export type PostCardData = {
   coinReward: number;
   maxApplicants: number | null;
   deadline: Date | null;
+  scheduledAt: Date | null;
+  scheduleNote: string | null;
   status: "OPEN" | "CLOSED";
   applicationsCount: number; // ACCEPTED+COMPLETED 정원 카운트용
   pendingCount: number; // PENDING (작성자에게 알림용)
@@ -49,6 +51,8 @@ export function PostCard({ post, isAuthor }: Props) {
           coinReward: post.coinReward,
           maxApplicants: post.maxApplicants,
           deadline: post.deadline ? post.deadline.toISOString().slice(0, 10) : null,
+          scheduledAt: post.scheduledAt ? toLocalDateTimeInput(post.scheduledAt) : null,
+          scheduleNote: post.scheduleNote,
         }}
         onCancel={() => setEditing(false)}
         onDone={() => setEditing(false)}
@@ -138,6 +142,29 @@ export function PostCard({ post, isAuthor }: Props) {
           <p className="text-xs whitespace-pre-wrap" style={{ color: "var(--fg-dim)" }}>
             {post.description}
           </p>
+        )}
+
+        {isClass && (post.scheduledAt || post.scheduleNote) && (
+          <div
+            className="rounded-lg px-2.5 py-1.5 text-xs"
+            style={{
+              background: "rgba(177,255,66,0.08)",
+              border: "1px solid rgba(177,255,66,0.2)",
+              color: "var(--accent-lime)",
+            }}
+          >
+            {post.scheduledAt && (
+              <p className="inline-flex items-center gap-1">
+                <Calendar size={11} />
+                {formatScheduledAt(post.scheduledAt)}
+              </p>
+            )}
+            {post.scheduleNote && (
+              <p className="text-[11px] mt-0.5" style={{ color: "var(--fg-dim)" }}>
+                {post.scheduleNote}
+              </p>
+            )}
+          </div>
         )}
 
         <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--fg-muted)" }}>
@@ -290,6 +317,18 @@ export function PostCard({ post, isAuthor }: Props) {
       </div>
     </article>
   );
+}
+
+function toLocalDateTimeInput(d: Date): string {
+  // Date → "YYYY-MM-DDTHH:MM" (사용자 로컬 타임존 기준 표시)
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatScheduledAt(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dow = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  return `${d.getMonth() + 1}/${d.getDate()} (${dow}) ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function AuthorButton({

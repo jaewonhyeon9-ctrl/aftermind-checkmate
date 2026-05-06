@@ -235,6 +235,8 @@ model ContributionPost {
   coinReward    Int                 @default(0)
   maxApplicants Int?
   deadline      DateTime?
+  scheduledAt   DateTime?           // 수업 시작 시간 (CLASS만, 강의자가 결정)
+  scheduleNote  String?             // 일정 메모 (예: "참여자와 조율 후 결정")
   status        ContributionStatus  @default(OPEN)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt

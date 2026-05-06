@@ -8,6 +8,11 @@ import { issueCoin, transferCoin } from "@/lib/coin";
 
 // ===== ContributionPost =====
 
+const isoDateTimeOrNull = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/)
+  .nullable();
+
 const createPostSchema = z.object({
   type: z.enum(["SKILL", "CLASS"]),
   title: z.string().min(1).max(80),
@@ -15,6 +20,8 @@ const createPostSchema = z.object({
   coinReward: z.number().int().min(0).max(1_000_000),
   maxApplicants: z.number().int().positive().max(1000).nullable(),
   deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  scheduledAt: isoDateTimeOrNull,
+  scheduleNote: z.string().max(200).nullable(),
 });
 
 export async function createPost(input: z.infer<typeof createPostSchema>) {
@@ -29,6 +36,8 @@ export async function createPost(input: z.infer<typeof createPostSchema>) {
       coinReward: parsed.coinReward,
       maxApplicants: parsed.maxApplicants,
       deadline: parsed.deadline ? new Date(parsed.deadline + "T23:59:59.000Z") : null,
+      scheduledAt: parsed.scheduledAt ? new Date(parsed.scheduledAt) : null,
+      scheduleNote: parsed.scheduleNote?.trim() || null,
     },
   });
   revalidatePath(parsed.type === "SKILL" ? "/team/contribute" : "/team/class");
@@ -41,6 +50,8 @@ const updatePostSchema = z.object({
   coinReward: z.number().int().min(0).max(1_000_000),
   maxApplicants: z.number().int().positive().max(1000).nullable(),
   deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  scheduledAt: isoDateTimeOrNull,
+  scheduleNote: z.string().max(200).nullable(),
 });
 
 export async function updatePost(input: z.infer<typeof updatePostSchema>) {
@@ -56,6 +67,8 @@ export async function updatePost(input: z.infer<typeof updatePostSchema>) {
       coinReward: parsed.coinReward,
       maxApplicants: parsed.maxApplicants,
       deadline: parsed.deadline ? new Date(parsed.deadline + "T23:59:59.000Z") : null,
+      scheduledAt: parsed.scheduledAt ? new Date(parsed.scheduledAt) : null,
+      scheduleNote: parsed.scheduleNote?.trim() || null,
     },
   });
   revalidatePath(post.type === "SKILL" ? "/team/contribute" : "/team/class");
@@ -138,6 +151,24 @@ export async function applyToPost(input: z.infer<typeof applySchema>) {
   revalidatePath("/team/contribute");
   revalidatePath("/team/class");
   revalidatePath(`/team/post/${parsed.postId}`);
+}
+
+const updateMessageSchema = z.object({
+  applicationId: z.string().uuid(),
+  message: z.string().max(500).nullable(),
+});
+
+export async function updateApplicationMessage(input: z.infer<typeof updateMessageSchema>) {
+  const user = await requireUser();
+  const parsed = updateMessageSchema.parse(input);
+  const app = await prisma.contributionApplication.findUnique({ where: { id: parsed.applicationId } });
+  if (!app || app.applicantId !== user.id) throw new Error("권한 없음");
+  if (app.status !== "PENDING") throw new Error("승인/완료된 신청은 메시지를 수정할 수 없어요");
+  await prisma.contributionApplication.update({
+    where: { id: parsed.applicationId },
+    data: { message: parsed.message?.trim() || null },
+  });
+  revalidatePath(`/team/post/${app.postId}`);
 }
 
 export async function cancelApplication(applicationId: string) {

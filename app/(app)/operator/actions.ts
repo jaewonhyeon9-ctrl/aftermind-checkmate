@@ -73,6 +73,36 @@ export async function deleteAssignedTask(taskId: string) {
   revalidatePath("/me");
 }
 
+const updateTaskSchema = z.object({
+  taskId: z.string().uuid(),
+  title: z.string().min(1).max(120),
+  description: z.string().nullable(),
+  videoUrl: z.string().url().nullable().or(z.literal("").transform(() => null)),
+  attachments: z.array(z.string().url()).default([]),
+  dueDate: z.string().nullable(),
+});
+
+export async function updateAssignedTask(input: z.infer<typeof updateTaskSchema>) {
+  await requireOperator();
+  const parsed = updateTaskSchema.parse(input);
+  const due = parsed.dueDate ? new Date(parsed.dueDate + "T23:59:59.000Z") : null;
+
+  await prisma.assignedTask.update({
+    where: { id: parsed.taskId },
+    data: {
+      title: parsed.title.trim(),
+      description: parsed.description?.trim() || null,
+      videoUrl: parsed.videoUrl,
+      attachments: parsed.attachments,
+      dueDate: due,
+    },
+  });
+
+  revalidatePath("/operator");
+  revalidatePath("/today");
+  revalidatePath("/me");
+}
+
 const roleSchema = z.object({
   userId: z.string().uuid(),
   role: z.enum(["OPERATOR", "MEMBER"]),

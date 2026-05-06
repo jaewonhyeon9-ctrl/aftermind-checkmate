@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Check, Trash2, Clock } from "lucide-react";
+import { Plus, Check, Trash2, Clock, Pencil } from "lucide-react";
 import clsx from "clsx";
 import confetti from "canvas-confetti";
 import {
@@ -10,6 +10,7 @@ import {
   completeTimelineTask,
   uncompleteTimelineTask,
   deleteTimelineTask,
+  updateTimelineTask,
 } from "./actions";
 import { MemoEditor } from "@/components/MemoEditor";
 
@@ -94,6 +95,7 @@ export function Timeline({
 function TaskRow({ task, compact = false }: { task: TimelineTask; compact?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const isCompleted = !!task.completedAt;
 
   function toggle() {
@@ -115,6 +117,21 @@ function TaskRow({ task, compact = false }: { task: TimelineTask; compact?: bool
       await deleteTimelineTask(task.id);
       router.refresh();
     });
+  }
+
+  if (editing && !compact) {
+    return (
+      <li>
+        <EditTaskRow
+          task={task}
+          onCancel={() => setEditing(false)}
+          onDone={() => {
+            setEditing(false);
+            router.refresh();
+          }}
+        />
+      </li>
+    );
   }
 
   return (
@@ -161,15 +178,26 @@ function TaskRow({ task, compact = false }: { task: TimelineTask; compact?: bool
           </span>
         )}
         {!compact && (
-          <button
-            type="button"
-            onClick={remove}
-            disabled={pending}
-            className="p-1 text-slate-400 hover:text-red-600"
-            aria-label="삭제"
-          >
-            <Trash2 size={14} />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={pending}
+              className="p-1 text-slate-400 hover:text-slate-700"
+              aria-label="수정"
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={remove}
+              disabled={pending}
+              className="p-1 text-slate-400 hover:text-red-600"
+              aria-label="삭제"
+            >
+              <Trash2 size={14} />
+            </button>
+          </>
         )}
       </div>
       <div className={compact ? "ml-7" : "ml-10"}>
@@ -245,6 +273,88 @@ function AddTaskRow({
         <button
           type="button"
           onClick={onDone}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600"
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditTaskRow({
+  task,
+  onCancel,
+  onDone,
+}: {
+  task: TimelineTask;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [title, setTitle] = useState(task.title);
+  const [startTime, setStartTime] = useState(task.startTime);
+  const [dueTime, setDueTime] = useState(task.dueTime);
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    setError(null);
+    if (!title.trim()) {
+      setError("제목을 입력해주세요");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await updateTimelineTask({
+          taskId: task.id,
+          title: title.trim(),
+          startTime,
+          dueTime,
+        });
+        onDone();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "수정 실패");
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-3 space-y-2 bg-slate-50">
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="할일 제목"
+        autoFocus
+        className="input bg-white"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="time"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          className="input bg-white"
+        />
+        <input
+          type="time"
+          value={dueTime}
+          onChange={(e) => setDueTime(e.target.value)}
+          className="input bg-white"
+        />
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending}
+          className="flex-1 rounded-lg bg-slate-900 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {pending ? "저장 중…" : "저장"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600"
         >
           취소
