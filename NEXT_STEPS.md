@@ -1,6 +1,6 @@
 # 에프터마인드2기 체크메이트 — 이어가기 가이드
 
-> 마지막 작업: 2026-04-28 (밤)
+> 마지막 작업: 2026-05-04
 > 다음 세션 시작 시 이 문서 먼저 읽기.
 
 ---
@@ -11,7 +11,8 @@
 - **Vercel 프로젝트**: `jaewonhyeon9-7705s-projects/aftermind-checkmate`
 - **함수 리전**: `icn1` (서울) — Supabase와 같은 리전
 - **DB**: Supabase `pwnegioardhvvkxttjsx` (서울)
-- **재배포**: `vercel deploy --prod --yes` (CLI 인증돼 있음)
+- **GitHub repo**: https://github.com/jaewonhyeon9-ctrl/aftermind-checkmate (private)
+- **배포 방식**: `git push` → Vercel 자동 빌드/배포 (CLI 불필요)
 
 ## 🔑 계정 (현재 4개 가입됨)
 
@@ -78,6 +79,39 @@
 - 헤더: 글래스모피즘 + 시안→바이올렛 그라데이션 텍스트
 - 바텀 네비: 활성 탭 시안 글로우 + 상단 인디케이터
 - 버튼: 시안→바이올렛 그라데이션 + 글로우 섀도우
+
+---
+
+## 🆕 2026-05-04 추가 — 팀 협업 + 코인
+
+### 팀 라우트 (`/team`)
+4개 서브탭 (TeamSubNav):
+- **🤝 기여** (`/team/contribute`) — 팀원이 자기가 줄 수 있는 도움 등록 → 신청 → 작성자 승인 → 완료 시 보상 코인 송금
+- **🎓 수업** (`/team/class`) — 수업 개설 (정원 옵션) → 선착순 자동 등록 → 완료 시 보상
+- **🪙 코인** (`/team/coin`) — 잔액/송금/발행/거래내역. 팀원 잔액 순위
+- **📊 리포트** (`/team/report`) — 월~일 주간, 코인 거래 + 체크리스트 통계, 토요일에 "주말 결산" 강조, 이전/다음 주 네비
+
+### 코인 정책
+- **무한 발행** (사용자 결정): 누구나 새 코인 발행 가능 (`fromUserId = null`)
+- **송금**: 잔액에서 차감, 자기 자신엔 송금 금지
+- **잔액 계산**: `sum(received) - sum(sent)` 동적 (캐시 필드 X)
+- **이벤트 소싱**: 모든 코인 흐름이 `CoinLedger` 한 곳에 기록 (reason: ISSUE/TRANSFER/CONTRIBUTION_REWARD/CLASS_REWARD)
+
+### BottomNav 변경
+- 운영자 6개 / 멤버 5개 (오늘/피드/팀/가계부/[운영자]/내기록)
+- 기존 `/feed` 라벨이 "팀"이었는데 "피드"로 변경, 새 `/team`이 "팀" 차지
+
+### DB 모델 추가
+| 테이블 | 용도 |
+|---|---|
+| `ContributionPost` | 기여 또는 수업 게시. type SKILL/CLASS, status OPEN/CLOSED |
+| `ContributionApplication` | 신청. status PENDING/ACCEPTED/REJECTED/COMPLETED |
+| `CoinLedger` | 코인 흐름 기록 (이벤트 소싱) |
+
+### 핵심 파일
+- `lib/coin.ts` — `getBalance` / `getBalances` / `issueCoin` / `transferCoin`
+- `app/(app)/team/actions.ts` — 게시/신청/승인/완료/송금/발행 서버 액션
+- `app/(app)/team/post/[id]/page.tsx` — 게시글 상세 + 작성자용 신청자 관리
 
 ---
 
@@ -149,8 +183,8 @@ node scripts/build-icons.mjs
 # 프로덕션 빌드
 npm run build
 
-# Vercel 프로덕션 배포
-vercel deploy --prod --yes
+# 프로덕션 배포 (git push로 Vercel 자동 빌드)
+git add -A && git commit -m "..." && git push
 
 # Vercel 환경변수 추가
 printf "%s" "값" | vercel env add VAR_NAME production
@@ -166,8 +200,14 @@ printf "%s" "값" | vercel env add VAR_NAME production
 | 002 | `manual-migration-002-user-final-goal.sql` | User.finalGoal |
 | 003 | `manual-migration-003-memos.sql` | TimelineTask.memo, MustCheck.memo, AssignedTaskCompletion.memo |
 | 004 | `manual-migration-004-task-links.sql` | AssignedTask.videoUrl, attachments[] |
+| 005 | `manual-migration-005-user-timezone.sql` | User.timezone |
+| 006 | `manual-migration-006-push-subscription.sql` | PushSubscription |
+| 007 | `manual-migration-007-period-plan.sql` | PeriodPlan (주/월/년 계획) |
+| 008 | `manual-migration-008-gratitude.sql` | DailyEntry.gratitude |
+| 009 | `manual-migration-009-transaction.sql` | Transaction (가계부 수입/지출) |
+| 010 | `manual-migration-010-team-coin.sql` | ContributionPost / ContributionApplication / CoinLedger + 4 enum |
 
-다음 마이그레이션은 `manual-migration-005-*.sql` 부터.
+다음 마이그레이션은 `manual-migration-011-*.sql` 부터.
 
 ---
 
@@ -195,6 +235,6 @@ DB 비밀번호 노출 우려 시 Supabase 대시보드 → Database → Reset p
 
 또는
 
-> "디자인 어땠는지 보고 톤다운/조정하자. [구체적 피드백]"
+> "/team 써보니 [어떤 부분]이 [어떻게] 어색해. 고쳐줘."
 
 또는 미흡한 부분 있으면 그대로 알려주세요.
