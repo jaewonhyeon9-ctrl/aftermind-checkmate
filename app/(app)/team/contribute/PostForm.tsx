@@ -2,19 +2,33 @@
 
 import { useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
-import { createPost } from "../actions";
+import { createPost, updatePost } from "../actions";
 
-type Props = {
-  type: "SKILL" | "CLASS";
+type EditInitial = {
+  postId: string;
+  title: string;
+  description: string | null;
+  coinReward: number;
+  maxApplicants: number | null;
+  deadline: string | null; // YYYY-MM-DD
 };
 
-export function PostForm({ type }: Props) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [coinReward, setCoinReward] = useState("0");
-  const [maxApplicants, setMaxApplicants] = useState("");
-  const [deadline, setDeadline] = useState("");
+type Props =
+  | { type: "SKILL" | "CLASS"; mode?: "CREATE" }
+  | { type: "SKILL" | "CLASS"; mode: "EDIT"; initial: EditInitial; onCancel: () => void; onDone: () => void };
+
+export function PostForm(props: Props) {
+  const isEdit = props.mode === "EDIT";
+  const initial = isEdit ? props.initial : null;
+
+  const [open, setOpen] = useState(isEdit);
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [coinReward, setCoinReward] = useState(String(initial?.coinReward ?? 0));
+  const [maxApplicants, setMaxApplicants] = useState(
+    initial?.maxApplicants != null ? String(initial.maxApplicants) : ""
+  );
+  const [deadline, setDeadline] = useState(initial?.deadline ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -26,27 +40,32 @@ export function PostForm({ type }: Props) {
     setError(null);
     start(async () => {
       try {
-        await createPost({
-          type,
+        const data = {
           title: title.trim(),
           description: description.trim() || null,
           coinReward: Math.max(0, parseInt(coinReward) || 0),
           maxApplicants: maxApplicants ? Math.max(1, parseInt(maxApplicants)) : null,
           deadline: deadline || null,
-        });
-        setTitle("");
-        setDescription("");
-        setCoinReward("0");
-        setMaxApplicants("");
-        setDeadline("");
-        setOpen(false);
+        };
+        if (isEdit && initial) {
+          await updatePost({ postId: initial.postId, ...data });
+          props.onDone();
+        } else {
+          await createPost({ type: props.type, ...data });
+          setTitle("");
+          setDescription("");
+          setCoinReward("0");
+          setMaxApplicants("");
+          setDeadline("");
+          setOpen(false);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "오류가 발생했습니다");
       }
     });
   };
 
-  const noun = type === "CLASS" ? "수업" : "기여";
+  const noun = props.type === "CLASS" ? "수업" : "기여";
 
   if (!open) {
     return (
@@ -65,6 +84,11 @@ export function PostForm({ type }: Props) {
     );
   }
 
+  const closeForm = () => {
+    if (isEdit) props.onCancel();
+    else setOpen(false);
+  };
+
   return (
     <div
       className="rounded-2xl p-4 space-y-3"
@@ -76,16 +100,16 @@ export function PostForm({ type }: Props) {
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
-          새 {noun} 등록
+          {isEdit ? `${noun} 수정` : `새 ${noun} 등록`}
         </h3>
-        <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-200">
+        <button onClick={closeForm} className="text-slate-400 hover:text-slate-200">
           <X size={16} />
         </button>
       </div>
 
       <input
         type="text"
-        placeholder={type === "CLASS" ? "수업 제목 (예: 인스타 광고 세팅 1시간)" : "기여 제목 (예: 영상 편집 도와드려요)"}
+        placeholder={props.type === "CLASS" ? "수업 제목 (예: 인스타 광고 세팅 1시간)" : "기여 제목 (예: 영상 편집 도와드려요)"}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         className="w-full px-3 py-2 rounded-lg text-sm"
@@ -127,7 +151,7 @@ export function PostForm({ type }: Props) {
             }}
           />
         </label>
-        {type === "CLASS" && (
+        {props.type === "CLASS" && (
           <label className="text-xs" style={{ color: "var(--fg-muted)" }}>
             정원 (선택)
             <input
@@ -176,7 +200,7 @@ export function PostForm({ type }: Props) {
           boxShadow: "0 4px 20px rgba(0,224,255,0.3)",
         }}
       >
-        {pending ? "등록 중..." : "등록"}
+        {pending ? (isEdit ? "저장 중..." : "등록 중...") : isEdit ? "저장" : "등록"}
       </button>
     </div>
   );

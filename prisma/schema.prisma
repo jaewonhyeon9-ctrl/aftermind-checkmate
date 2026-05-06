@@ -62,8 +62,9 @@ model User {
   role       UserRole @default(MEMBER)
   kakaoPhone String?
   isActive   Boolean  @default(true)
-  finalGoal  String?  // 에프터마인드 2기 최종 목표
-  timezone   String   @default("Asia/Seoul")
+  finalGoal    String?  // 에프터마인드 2기 최종 목표
+  mandalaChart Json?    // 만다라트 차트 (9x9 그리드)
+  timezone     String   @default("Asia/Seoul")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -34,6 +34,34 @@ export async function createPost(input: z.infer<typeof createPostSchema>) {
   revalidatePath(parsed.type === "SKILL" ? "/team/contribute" : "/team/class");
 }
 
+const updatePostSchema = z.object({
+  postId: z.string().uuid(),
+  title: z.string().min(1).max(80),
+  description: z.string().max(2000).nullable(),
+  coinReward: z.number().int().min(0).max(1_000_000),
+  maxApplicants: z.number().int().positive().max(1000).nullable(),
+  deadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+});
+
+export async function updatePost(input: z.infer<typeof updatePostSchema>) {
+  const user = await requireUser();
+  const parsed = updatePostSchema.parse(input);
+  const post = await prisma.contributionPost.findUnique({ where: { id: parsed.postId } });
+  if (!post || post.authorId !== user.id) throw new Error("권한 없음");
+  await prisma.contributionPost.update({
+    where: { id: parsed.postId },
+    data: {
+      title: parsed.title.trim(),
+      description: parsed.description?.trim() || null,
+      coinReward: parsed.coinReward,
+      maxApplicants: parsed.maxApplicants,
+      deadline: parsed.deadline ? new Date(parsed.deadline + "T23:59:59.000Z") : null,
+    },
+  });
+  revalidatePath(post.type === "SKILL" ? "/team/contribute" : "/team/class");
+  revalidatePath(`/team/post/${parsed.postId}`);
+}
+
 export async function closePost(postId: string) {
   const user = await requireUser();
   const post = await prisma.contributionPost.findUnique({ where: { id: postId } });

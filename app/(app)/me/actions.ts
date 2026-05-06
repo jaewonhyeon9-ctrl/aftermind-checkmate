@@ -34,3 +34,27 @@ export async function updateMyProfile(input: z.infer<typeof profileSchema>) {
   revalidatePath("/feed");
   revalidatePath("/operator");
 }
+
+const mandalaSchema = z.object({
+  center: z.string().max(80),
+  goals: z
+    .array(
+      z.object({
+        title: z.string().max(40),
+        actions: z.array(z.string().max(40)).length(8),
+      })
+    )
+    .length(8),
+});
+
+export type MandalaData = z.infer<typeof mandalaSchema>;
+
+export async function updateMandala(input: MandalaData) {
+  const me = await requireUser();
+  const parsed = mandalaSchema.parse(input);
+  await prisma.user.update({
+    where: { id: me.id },
+    data: { mandalaChart: parsed },
+  });
+  revalidatePath("/me");
+}

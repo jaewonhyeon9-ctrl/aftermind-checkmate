@@ -21,6 +21,8 @@ import { LevelBadge } from "@/components/LevelBadge";
 import { InstallButton } from "@/components/InstallPrompt";
 import { PushSubscribeButton } from "@/components/PushSubscribeButton";
 import { PeriodPlans } from "./PeriodPlans";
+import { MandalaChart } from "./MandalaChart";
+import type { MandalaData } from "./actions";
 
 export default async function MePage() {
   const user = await requireUser();
@@ -138,6 +140,8 @@ export default async function MePage() {
           yearPlan={yearPlan}
           yearKey={yearKey}
         />
+
+        <MandalaChart initial={parseMandala(user.mandalaChart)} />
 
         <section>
           <h3 className="text-sm font-semibold text-slate-700 mb-2">📅 캘린더</h3>
@@ -280,4 +284,20 @@ function computeStreak(entryDates: string[], today: string): number {
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+function parseMandala(raw: unknown): MandalaData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { center?: unknown; goals?: unknown };
+  if (typeof r.center !== "string" || !Array.isArray(r.goals) || r.goals.length !== 8) return null;
+  const goals = r.goals.map((g) => {
+    const obj = g as { title?: unknown; actions?: unknown };
+    const title = typeof obj.title === "string" ? obj.title : "";
+    const rawActions = Array.isArray(obj.actions) ? obj.actions : [];
+    const actions: string[] = Array.from({ length: 8 }, (_, i) =>
+      typeof rawActions[i] === "string" ? (rawActions[i] as string) : ""
+    );
+    return { title, actions };
+  });
+  return { center: r.center, goals };
 }

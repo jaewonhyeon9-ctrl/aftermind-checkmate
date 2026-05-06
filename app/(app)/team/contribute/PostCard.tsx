@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Coins, Users, Clock, Check } from "lucide-react";
+import { Coins, Users, Clock, Pencil } from "lucide-react";
 import { applyToPost, cancelApplication, closePost, reopenPost, deletePost } from "../actions";
+import { PostForm } from "./PostForm";
 
 export type PostCardData = {
   id: string;
@@ -31,9 +32,29 @@ type Props = {
 
 export function PostCard({ post, isAuthor }: Props) {
   const [showApplyForm, setShowApplyForm] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  if (editing) {
+    return (
+      <PostForm
+        type={post.type}
+        mode="EDIT"
+        initial={{
+          postId: post.id,
+          title: post.title,
+          description: post.description,
+          coinReward: post.coinReward,
+          maxApplicants: post.maxApplicants,
+          deadline: post.deadline ? post.deadline.toISOString().slice(0, 10) : null,
+        }}
+        onCancel={() => setEditing(false)}
+        onDone={() => setEditing(false)}
+      />
+    );
+  }
 
   const isClass = post.type === "CLASS";
   const isClosed = post.status === "CLOSED";
@@ -242,6 +263,10 @@ export function PostCard({ post, isAuthor }: Props) {
         {/* 작성자 컨트롤 */}
         {isAuthor && (
           <div className="flex gap-2 pt-2 border-t" style={{ borderColor: "var(--line)" }}>
+            <AuthorButton onClick={() => setEditing(true)} disabled={pending}>
+              <Pencil size={11} className="inline mr-0.5" />
+              수정
+            </AuthorButton>
             {!isClosed ? (
               <AuthorButton onClick={() => start(() => closePost(post.id))} disabled={pending}>
                 마감
