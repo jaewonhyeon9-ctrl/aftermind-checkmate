@@ -115,7 +115,17 @@ export function EntryForm({
     i: number,
     patch: Partial<{ title: string; startTime: string; dueTime: string }>
   ) {
-    setTimeline((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setTimeline((prev) =>
+      prev.map((r, idx) => {
+        if (idx !== i) return r;
+        const next = { ...r, ...patch };
+        // 시작 시간을 바꾸면 마감이 시작 이전/같으면 자동으로 +1시간 당겨놓기
+        if (patch.startTime !== undefined && timeLte(next.dueTime, next.startTime)) {
+          next.dueTime = shiftHour(next.startTime, 1);
+        }
+        return next;
+      })
+    );
   }
   function removeTimelineRow(i: number) {
     setTimeline((prev) => prev.filter((_, idx) => idx !== i));
@@ -125,13 +135,18 @@ export function EntryForm({
     e.preventDefault();
     setError(null);
 
-    const cleanedTimeline = timeline
-      .map((t) => ({
-        title: t.title.trim(),
-        startTime: t.startTime,
-        dueTime: t.dueTime,
-      }))
-      .filter((t) => t.title);
+    // timelineSlot이 외부 컴포넌트(예: /today의 Timeline)에 의해 직접 관리되는 경우,
+    // 폼이 timeline을 덮어쓰지 않도록 payload에서 빼버림 (그렇지 않으면 폼 마운트 시점의
+    // 옛 데이터로 덮어써져서 + 추가로 더한 항목이 사라짐)
+    const cleanedTimeline = timelineSlot
+      ? undefined
+      : timeline
+          .map((t) => ({
+            title: t.title.trim(),
+            startTime: t.startTime,
+            dueTime: t.dueTime,
+          }))
+          .filter((t) => t.title);
 
     startTransition(async () => {
       try {
@@ -466,4 +481,9 @@ function shiftHour(hhmm: string, hours: number): string {
   const [h, m] = hhmm.split(":").map(Number);
   const next = (h + hours + 24) % 24;
   return `${String(next).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function timeLte(a: string, b: string): boolean {
+  // "HH:MM" 비교 — 사전식 비교가 시간 순서와 일치
+  return a <= b;
 }

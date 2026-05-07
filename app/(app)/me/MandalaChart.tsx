@@ -109,10 +109,25 @@ export function MandalaChart({ initial }: Props) {
   }
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold inline-flex items-center gap-1.5" style={{ color: "var(--fg)" }}>
-          <Sparkles size={14} style={{ color: "var(--accent-violet)" }} />
+    <section
+      className="rounded-2xl p-4 space-y-3"
+      style={{
+        background: "linear-gradient(180deg, rgba(15,20,40,0.7), rgba(15,20,40,0.4))",
+        border: "1px solid var(--accent-violet)",
+        boxShadow: "0 0 24px rgba(161,85,255,0.15)",
+      }}
+    >
+      <header className="flex items-center justify-between gap-2">
+        <h3
+          className="text-base font-bold inline-flex items-center gap-1.5"
+          style={{
+            background: "linear-gradient(90deg, #00e0ff, #a155ff)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
+          <Sparkles size={16} style={{ color: "var(--accent-violet)" }} />
           만다라트 차트
         </h3>
         <div className="flex items-center gap-1.5">
@@ -120,10 +135,7 @@ export function MandalaChart({ initial }: Props) {
             onClick={reset}
             disabled={pending}
             className="text-[11px] px-2 py-1 rounded inline-flex items-center gap-1"
-            style={{
-              border: "1px solid var(--line)",
-              color: "var(--fg-muted)",
-            }}
+            style={{ border: "1px solid var(--line)", color: "var(--fg-muted)" }}
           >
             <RotateCcw size={11} />
             초기화
@@ -142,23 +154,22 @@ export function MandalaChart({ initial }: Props) {
             {pending ? "저장 중..." : success ? "✓ 저장됨" : "저장"}
           </button>
         </div>
-      </div>
+      </header>
 
       <p className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
-        가운데에 메인 목표 → 8개 하위 목표 → 각 목표마다 8개 액션
+        가운데 셀에 <span style={{ color: "var(--accent-cyan)" }}>메인 목표</span> → 둘레 8칸에{" "}
+        <span style={{ color: "var(--accent-lime)" }}>하위 목표</span> → 각 하위 목표마다 8개 액션
       </p>
 
-      <div
-        className="rounded-2xl p-2"
-        style={{
-          background: "rgba(15,20,40,0.5)",
-          border: "1px solid var(--line)",
-        }}
-      >
-        {/* 외곽 3x3 of sub-grids */}
-        <div className="grid grid-cols-3 gap-1.5">
+      <div className="overflow-x-auto -mx-1 px-1">
+        {/* 외곽 3x3 of sub-grids — 최소 너비 보장으로 작은 화면에서도 가독 */}
+        <div className="grid grid-cols-3 gap-1.5" style={{ minWidth: "320px" }}>
           {Array.from({ length: 9 }).map((_, subGridIdx) => (
-            <div key={subGridIdx} className="grid grid-cols-3 gap-px rounded-md overflow-hidden" style={{ background: "var(--line)" }}>
+            <div
+              key={subGridIdx}
+              className="grid grid-cols-3 gap-px rounded-md overflow-hidden"
+              style={{ background: "var(--line)" }}
+            >
               {Array.from({ length: 9 }).map((_, pos) => {
                 const cell = cellFor(subGridIdx, pos);
                 return (
@@ -191,9 +202,9 @@ function Cell({
 }) {
   const bg =
     role === "main"
-      ? "linear-gradient(135deg, rgba(0,224,255,0.25), rgba(161,85,255,0.25))"
+      ? "linear-gradient(135deg, rgba(0,224,255,0.35), rgba(161,85,255,0.35))"
       : role === "goal"
-        ? "rgba(177,255,66,0.10)"
+        ? "rgba(177,255,66,0.15)"
         : "rgba(10,14,31,0.6)";
   const color =
     role === "main"
@@ -202,19 +213,20 @@ function Cell({
         ? "var(--accent-lime)"
         : "var(--fg)";
   return (
-    <textarea
+    <input
+      type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder=""
-      rows={2}
-      className="aspect-square w-full p-0.5 text-center resize-none focus:outline-none focus:ring-1"
+      className="w-full text-center focus:outline-none focus:ring-1 truncate"
       style={{
         background: bg,
         color,
-        fontSize: "9px",
-        lineHeight: "1.1",
+        height: "44px",
+        fontSize: "10px",
+        lineHeight: "1.2",
         fontWeight: role === "main" ? 700 : role === "goal" ? 600 : 400,
         borderColor: "transparent",
+        padding: "2px",
       }}
     />
   );

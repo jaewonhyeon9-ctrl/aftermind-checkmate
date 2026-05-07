@@ -20,6 +20,7 @@ import { ProfileEdit } from "./ProfileEdit";
 import { LevelBadge } from "@/components/LevelBadge";
 import { InstallButton } from "@/components/InstallPrompt";
 import { PushSubscribeButton } from "@/components/PushSubscribeButton";
+import { KakaoIntegrationCard } from "./KakaoIntegrationCard";
 import { PeriodPlans } from "./PeriodPlans";
 import { MandalaChart } from "./MandalaChart";
 import type { MandalaData } from "./actions";
@@ -210,6 +211,7 @@ export default async function MePage() {
           </section>
         )}
 
+        <KakaoIntegrationCard />
         <PushSubscribeButton />
         <InstallButton />
         <LogoutButton />

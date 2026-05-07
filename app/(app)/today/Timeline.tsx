@@ -214,11 +214,17 @@ function AddTaskRow({
   dailyEntryId: string;
   onDone: () => void;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
+  const [startTime, setStartTimeRaw] = useState("09:00");
   const [dueTime, setDueTime] = useState("10:00");
   const [error, setError] = useState<string | null>(null);
+
+  function setStartTime(v: string) {
+    setStartTimeRaw(v);
+    if (dueTime <= v) setDueTime(shiftOneHour(v));
+  }
 
   function submit() {
     setError(null);
@@ -230,6 +236,7 @@ function AddTaskRow({
       try {
         await addTimelineTask({ dailyEntryId, title: title.trim(), startTime, dueTime });
         onDone();
+        router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "추가 실패");
       }
@@ -293,9 +300,14 @@ function EditTaskRow({
 }) {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(task.title);
-  const [startTime, setStartTime] = useState(task.startTime);
+  const [startTime, setStartTimeRaw] = useState(task.startTime);
   const [dueTime, setDueTime] = useState(task.dueTime);
   const [error, setError] = useState<string | null>(null);
+
+  function setStartTime(v: string) {
+    setStartTimeRaw(v);
+    if (dueTime <= v) setDueTime(shiftOneHour(v));
+  }
 
   function submit() {
     setError(null);
@@ -362,6 +374,12 @@ function EditTaskRow({
       </div>
     </div>
   );
+}
+
+function shiftOneHour(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const next = (h + 1 + 24) % 24;
+  return `${String(next).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function fireSoLate() {

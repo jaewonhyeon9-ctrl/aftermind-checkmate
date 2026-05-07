@@ -78,8 +78,26 @@ model User {
   applications           ContributionApplication[] @relation("Applicant")
   coinsSent              CoinLedger[]              @relation("CoinSender")
   coinsReceived          CoinLedger[]              @relation("CoinReceiver")
+  kakaoIntegration       KakaoIntegration?
 
   @@index([role])
+}
+
+model KakaoIntegration {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  kakaoId              String
+  accessToken          String   @db.Text
+  refreshToken         String   @db.Text
+  expiresAt            DateTime
+  dailyReminderEnabled Boolean  @default(true)
+  lastSentAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Transaction {

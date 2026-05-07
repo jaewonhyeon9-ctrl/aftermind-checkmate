@@ -23,7 +23,9 @@ const dailyEntrySchema = z.object({
   variables: z.string().nullable(),
   oneThing: z.string().nullable(),
   cheerMessage: z.string().nullable(),
-  timeline: z.array(timelinePlanItemSchema).default([]),
+  // timeline 필드를 보내지 않으면(undefined) 타임라인 동기화 자체를 건너뜀.
+  // /today 페이지처럼 별도의 Timeline 컴포넌트가 직접 DB를 관리하는 경우 사용.
+  timeline: z.array(timelinePlanItemSchema).optional(),
 });
 
 export type DailyEntryInput = z.infer<typeof dailyEntrySchema>;
@@ -102,36 +104,38 @@ export async function saveDailyEntry(input: DailyEntryInput) {
       }
     }
 
-    // 타임라인은 "계획"에 해당하는 부분만 갱신.
-    // 이미 완료된 태스크(completedAt 있음)는 보존하고, 나머지 미완료만 새 계획으로 교체.
-    const existing = await tx.timelineTask.findMany({
-      where: { dailyEntryId: e.id },
-      orderBy: { order: "asc" },
-    });
-    const completed = existing.filter((t) => t.completedAt !== null);
-    const completedKey = (t: { title: string; startTime: string; dueTime: string }) =>
-      `${t.title}|${t.startTime}|${t.dueTime}`;
-    const completedSet = new Set(completed.map(completedKey));
-
-    // 미완료 모두 삭제
-    await tx.timelineTask.deleteMany({
-      where: { dailyEntryId: e.id, completedAt: null },
-    });
-
-    // 새 계획에서 완료된 거 제외하고 (이미 보존됨) 나머지만 생성
-    const toCreate = parsed.timeline.filter((t) => !completedSet.has(completedKey(t)));
-
-    if (toCreate.length > 0) {
-      const startOrder = completed.length;
-      await tx.timelineTask.createMany({
-        data: toCreate.map((t, i) => ({
-          dailyEntryId: e.id,
-          title: t.title,
-          startTime: t.startTime,
-          dueTime: t.dueTime,
-          order: startOrder + i,
-        })),
+    // 타임라인은 폼이 명시적으로 보낼 때만 동기화.
+    // /today에서는 Timeline 컴포넌트가 직접 관리하므로 폼은 timeline을 보내지 않음.
+    if (parsed.timeline !== undefined) {
+      const existing = await tx.timelineTask.findMany({
+        where: { dailyEntryId: e.id },
+        orderBy: { order: "asc" },
       });
+      const completed = existing.filter((t) => t.completedAt !== null);
+      const completedKey = (t: { title: string; startTime: string; dueTime: string }) =>
+        `${t.title}|${t.startTime}|${t.dueTime}`;
+      const completedSet = new Set(completed.map(completedKey));
+
+      // 미완료 모두 삭제
+      await tx.timelineTask.deleteMany({
+        where: { dailyEntryId: e.id, completedAt: null },
+      });
+
+      // 새 계획에서 완료된 거 제외하고 (이미 보존됨) 나머지만 생성
+      const toCreate = parsed.timeline.filter((t) => !completedSet.has(completedKey(t)));
+
+      if (toCreate.length > 0) {
+        const startOrder = completed.length;
+        await tx.timelineTask.createMany({
+          data: toCreate.map((t, i) => ({
+            dailyEntryId: e.id,
+            title: t.title,
+            startTime: t.startTime,
+            dueTime: t.dueTime,
+            order: startOrder + i,
+          })),
+        });
+      }
     }
 
     return e;
