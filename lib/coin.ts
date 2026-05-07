@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { CoinReason } from "@prisma/client";
+import { sendPushToUser } from "@/lib/push";
 
 /**
  * 코인 시스템 (이벤트 소싱).
@@ -54,7 +55,7 @@ type IssueParams = {
 /** 시스템 발행 (fromUserId = null). 무한 발행. */
 export async function issueCoin({ toUserId, amount, memo, relatedPostId }: IssueParams) {
   if (!Number.isInteger(amount) || amount <= 0) throw new Error("amount는 양의 정수여야 합니다");
-  return prisma.coinLedger.create({
+  const ledger = await prisma.coinLedger.create({
     data: {
       fromUserId: null,
       toUserId,
@@ -64,6 +65,14 @@ export async function issueCoin({ toUserId, amount, memo, relatedPostId }: Issue
       relatedPostId: relatedPostId ?? null,
     },
   });
+  // fire-and-forget push
+  sendPushToUser(toUserId, {
+    title: "🪙 코인 발행 받음",
+    body: `${amount.toLocaleString("ko-KR")} 코인이 발행되어 들어왔어요${memo ? `: ${memo}` : ""}`,
+    url: "/team/coin",
+    tag: `coin-${ledger.id}`,
+  }).catch(() => {});
+  return ledger;
 }
 
 type TransferParams = {
@@ -90,7 +99,7 @@ export async function transferCoin({
   const balance = await getBalance(fromUserId);
   if (balance < amount) throw new Error(`잔액 부족 (보유: ${balance.toLocaleString("ko-KR")} 코인)`);
 
-  return prisma.coinLedger.create({
+  const ledger = await prisma.coinLedger.create({
     data: {
       fromUserId,
       toUserId,
@@ -100,4 +109,18 @@ export async function transferCoin({
       relatedPostId: relatedPostId ?? null,
     },
   });
+  const sender = await prisma.user.findUnique({ where: { id: fromUserId }, select: { name: true } });
+  const reasonLabel: Record<CoinReason, string> = {
+    ISSUE: "코인 발행",
+    TRANSFER: "코인 송금",
+    CONTRIBUTION_REWARD: "기여 보상",
+    CLASS_REWARD: "수업 보상",
+  };
+  sendPushToUser(toUserId, {
+    title: `🪙 ${reasonLabel[reason]}`,
+    body: `${sender?.name ?? "누군가"}님이 ${amount.toLocaleString("ko-KR")} 코인을 보냈어요${memo ? `: ${memo}` : ""}`,
+    url: "/team/coin",
+    tag: `coin-${ledger.id}`,
+  }).catch(() => {});
+  return ledger;
 }

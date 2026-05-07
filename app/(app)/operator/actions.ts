@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireOperator } from "@/lib/auth";
+import { sendPushToUsers } from "@/lib/push";
 
 const createTaskSchema = z
   .object({
@@ -40,7 +41,7 @@ export async function createAssignedTask(
     targetUserIds = [parsed.assigneeId!];
   }
 
-  await prisma.$transaction(async (tx) => {
+  const task = await prisma.$transaction(async (tx) => {
     const task = await tx.assignedTask.create({
       data: {
         creatorId: operator.id,
@@ -58,7 +59,19 @@ export async function createAssignedTask(
         userId: uid,
       })),
     });
+    return task;
   });
+
+  // 부여 받은 팀원들에게 푸시 (본인 제외)
+  const recipients = targetUserIds.filter((uid) => uid !== operator.id);
+  if (recipients.length > 0) {
+    sendPushToUsers(recipients, {
+      title: parsed.scope === "ALL" ? "🔥 새 전체 필수 과제" : "⭐ 새 개별 과제",
+      body: parsed.title,
+      url: "/today",
+      tag: `task-${task.id}`,
+    }).catch(() => {});
+  }
 
   revalidatePath("/operator");
   revalidatePath("/today");

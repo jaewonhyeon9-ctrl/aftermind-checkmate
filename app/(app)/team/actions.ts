@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { issueCoin, transferCoin } from "@/lib/coin";
+import { sendPushToUser } from "@/lib/push";
 
 // ===== ContributionPost =====
 
@@ -148,6 +149,15 @@ export async function applyToPost(input: z.infer<typeof applySchema>) {
     },
   });
 
+  // 게시자에게 알림 — 본인이 본인 게시글 신청은 막혀 있어서 항상 다른 사람에게 감
+  const noun = post.type === "CLASS" ? "수업" : "기여";
+  sendPushToUser(post.authorId, {
+    title: `📨 새 ${noun} 신청`,
+    body: `${user.name}님이 "${post.title}"에 신청했어요`,
+    url: `/team/post/${parsed.postId}`,
+    tag: `app-${parsed.postId}-${user.id}`,
+  }).catch(() => {});
+
   revalidatePath("/team/contribute");
   revalidatePath("/team/class");
   revalidatePath(`/team/post/${parsed.postId}`);
@@ -199,6 +209,18 @@ export async function decideApplication(input: z.infer<typeof decideSchema>) {
     where: { id: parsed.applicationId },
     data: { status: parsed.decision },
   });
+
+  const noun = app.post.type === "CLASS" ? "수업" : "기여";
+  sendPushToUser(app.applicantId, {
+    title: parsed.decision === "ACCEPTED" ? `✅ ${noun} 신청 승인` : `❌ ${noun} 신청 반려`,
+    body:
+      parsed.decision === "ACCEPTED"
+        ? `"${app.post.title}" 신청이 승인됐어요`
+        : `"${app.post.title}" 신청이 반려됐어요`,
+    url: `/team/post/${app.postId}`,
+    tag: `decide-${app.id}`,
+  }).catch(() => {});
+
   revalidatePath(`/team/post/${app.postId}`);
 }
 
@@ -235,6 +257,17 @@ export async function completeAndReward(input: z.infer<typeof completeSchema>) {
     where: { id: parsed.applicationId },
     data: { status: "COMPLETED" },
   });
+
+  // 보상이 있을 땐 transferCoin이 이미 푸시를 보내므로 여기선 보상이 없을 때만 완료 알림
+  if (app.post.coinReward === 0) {
+    const noun = app.post.type === "CLASS" ? "수업" : "기여";
+    sendPushToUser(app.applicantId, {
+      title: `🎉 ${noun} 완료`,
+      body: `"${app.post.title}" 완료 처리됐어요`,
+      url: `/team/post/${app.postId}`,
+      tag: `complete-${app.id}`,
+    }).catch(() => {});
+  }
 
   revalidatePath(`/team/post/${app.postId}`);
   revalidatePath("/team/coin");

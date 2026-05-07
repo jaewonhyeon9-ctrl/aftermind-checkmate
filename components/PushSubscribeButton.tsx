@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Check } from "lucide-react";
+import { Bell, BellOff, Check, Send } from "lucide-react";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
 
@@ -80,6 +80,26 @@ export function PushSubscribeButton() {
     }
   }
 
+  async function sendTest() {
+    setError(null);
+    setPending(true);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "테스트 발송 실패");
+      }
+      const data = await res.json();
+      if (data.sent === 0) {
+        setError("등록된 디바이스가 없어요. 알림을 다시 켜보세요.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "테스트 실패");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function unsubscribe() {
     setPending(true);
     setError(null);
@@ -124,14 +144,25 @@ export function PushSubscribeButton() {
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-xs text-emerald-700 inline-flex items-center gap-1.5 w-full">
           <Check size={13} /> 푸시 알림 활성화됨 — 매일 22시 리마인드
         </div>
-        <button
-          type="button"
-          onClick={unsubscribe}
-          disabled={pending}
-          className="w-full text-[11px] text-slate-500 hover:text-red-600 inline-flex items-center justify-center gap-1 py-1"
-        >
-          <BellOff size={11} /> 알림 끄기
-        </button>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={sendTest}
+            disabled={pending}
+            className="flex-1 text-[11px] rounded-md border border-slate-300 py-1.5 text-slate-600 hover:bg-slate-50 inline-flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <Send size={11} /> {pending ? "보내는 중…" : "테스트 알림 받기"}
+          </button>
+          <button
+            type="button"
+            onClick={unsubscribe}
+            disabled={pending}
+            className="text-[11px] text-slate-500 hover:text-red-600 inline-flex items-center gap-1 py-1.5 px-2"
+          >
+            <BellOff size={11} /> 끄기
+          </button>
+        </div>
+        {error && <p className="text-[11px] text-red-600 text-center">{error}</p>}
       </div>
     );
   }
