@@ -165,6 +165,9 @@ model DailyEntry {
   oneThing      String?
   cheerMessage  String?
 
+  /** 전날 미리 계획 완성 보상(300 코인) 지급 시각. NULL이면 미지급. */
+  planBonusAt   DateTime?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

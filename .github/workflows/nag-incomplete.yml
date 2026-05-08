@@ -1,0 +1,30 @@
+name: Nag Incomplete Plan
+
+# Vercel Hobby cron은 일 2개 한도라 3시간 간격 푸시는 외부 스케줄러로 처리.
+# KST = UTC+9이므로:
+#   8 KST = 23 UTC (전일)
+#   11 KST = 02 UTC
+#   14 KST = 05 UTC
+#   17 KST = 08 UTC
+#   20 KST = 11 UTC
+on:
+  schedule:
+    - cron: "0 23,2,5,8,11 * * *"
+  workflow_dispatch: # 수동 실행 (Actions 탭 → Run workflow)
+
+jobs:
+  nag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send nag pushes
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret이 설정 안 됨. Settings → Secrets → Actions에서 추가 필요."
+            exit 1
+          fi
+          response=$(curl -fsS -w "\n%{http_code}" -X GET \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://aftermind-checkmate.vercel.app/api/cron/nag-incomplete)
+          echo "$response"

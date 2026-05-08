@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { todayInTz } from "@/lib/dates";
+import { issueCoin } from "@/lib/coin";
+
+const PLAN_BONUS_AMOUNT = 300;
 
 const timelinePlanItemSchema = z.object({
   title: z.string().min(1).max(80),
@@ -141,10 +145,66 @@ export async function saveDailyEntry(input: DailyEntryInput) {
     return e;
   });
 
+  // 전날 미리 계획 완성 보상 — 내일 날짜의 entry를 오늘 자정 이전에 핵심 항목 모두 채워서 저장 시
+  // 사용자 timezone 기준 today < parsed.date면 "미래 날짜에 대한 plan"으로 간주
+  const tz = user.timezone || "Asia/Seoul";
+  const todayStr = todayInTz(tz);
+  let planBonusAwarded = false;
+  if (
+    parsed.date > todayStr &&
+    !entry.planBonusAt &&
+    isPlanComplete({
+      wakeUpTime: parsed.wakeUpTime,
+      must3,
+      nice3,
+      oneThing: parsed.oneThing,
+      timelineCount: parsed.timeline?.length ?? 0,
+    })
+  ) {
+    // 보상 지급 + 플래그 마크 — 동시 호출 방어를 위해 updateMany + 조건
+    const flagged = await prisma.dailyEntry.updateMany({
+      where: { id: entry.id, planBonusAt: null },
+      data: { planBonusAt: new Date() },
+    });
+    if (flagged.count > 0) {
+      try {
+        await issueCoin({
+          toUserId: user.id,
+          amount: PLAN_BONUS_AMOUNT,
+          memo: `${parsed.date} 계획 완성 보상 (전날 미리)`,
+        });
+        planBonusAwarded = true;
+      } catch {
+        // 코인 발행 실패 시 플래그 롤백 (재시도 가능하게)
+        await prisma.dailyEntry.update({
+          where: { id: entry.id },
+          data: { planBonusAt: null },
+        }).catch(() => {});
+      }
+    }
+  }
+
   revalidatePath("/today");
   revalidatePath("/feed");
   revalidatePath("/me");
-  return entry;
+  revalidatePath("/team/coin");
+  return { ...entry, planBonusAwarded };
+}
+
+/** 핵심 항목이 다 채워졌는지 검사 (전날 미리 보상 조건). */
+function isPlanComplete(input: {
+  wakeUpTime: string | null;
+  must3: string[];
+  nice3: string[];
+  oneThing: string | null;
+  timelineCount: number;
+}): boolean {
+  if (!input.wakeUpTime?.trim()) return false;
+  if (input.must3.length !== 3 || input.must3.some((s) => !s.trim())) return false;
+  if (input.nice3.length !== 3 || input.nice3.some((s) => !s.trim())) return false;
+  if (!input.oneThing?.trim()) return false;
+  if (input.timelineCount < 1) return false;
+  return true;
 }
 
 const timelineTaskSchema = z.object({

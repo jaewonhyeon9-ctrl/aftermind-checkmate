@@ -61,16 +61,14 @@ export async function GET(req: Request) {
 
     const badge = remainingTimeline + pendingTaskCount + (totalMust - doneMust);
 
-    let body: string;
-    if (!entry) {
-      body = `오늘 계획이 아직 비어있어요. 짧게라도 시작해볼까요?`;
-    } else {
-      const parts: string[] = [];
-      if (totalTimeline > 0) parts.push(`타임라인 ${doneTimeline}/${totalTimeline}`);
-      if (totalMust > 0) parts.push(`Must ${doneMust}/${totalMust}`);
-      if (pendingTaskCount > 0) parts.push(`과제 ${pendingTaskCount}개 남음`);
-      body = parts.length > 0 ? parts.join(" · ") : "오늘 할 일이 모두 정리됐어요!";
-    }
+    // 미작성자는 nag-incomplete 엔드포인트에서 별도로 처리 (중복 푸시 방지)
+    if (!entry) continue;
+
+    const parts: string[] = [];
+    if (totalTimeline > 0) parts.push(`타임라인 ${doneTimeline}/${totalTimeline}`);
+    if (totalMust > 0) parts.push(`Must ${doneMust}/${totalMust}`);
+    if (pendingTaskCount > 0) parts.push(`과제 ${pendingTaskCount}개 남음`);
+    const body = parts.length > 0 ? parts.join(" · ") : "오늘 할 일이 모두 정리됐어요!";
 
     await sendPushToUser(u.id, {
       title: `☀️ ${u.name}님, 좋은 아침이에요`,
