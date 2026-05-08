@@ -1,6 +1,6 @@
 # 에프터마인드2기 체크메이트 — 이어가기 가이드
 
-> 마지막 작업: 2026-05-04
+> 마지막 작업: 2026-05-07
 > 다음 세션 시작 시 이 문서 먼저 읽기.
 
 ---
@@ -115,6 +115,91 @@
 
 ---
 
+## 🆕 2026-05-06 추가 — 만다라트 + 게시글 수정 + 수업 일정 + 전반적 CRUD
+
+### 만다라트 차트 (`/me`)
+- 9x9 그리드 (외곽 3x3 sub-grid × 9개)
+- 중앙: 메인 목표 (시안↔바이올렛 그라데이션)
+- 라임색 셀 8개: 하위 목표 — 중앙 sub-grid 둘레 + 각 외곽 sub-grid 가운데 (자동 동기화)
+- 나머지 64셀: 액션 아이템
+- 모바일 폭 맞춤 (text-[9px]). 일괄 저장 버튼 + 초기화 버튼
+- DB: `User.mandalaChart` JSONB (마이그레이션 011)
+- 핵심 파일: `app/(app)/me/MandalaChart.tsx`, `app/(app)/me/actions.ts:updateMandala`
+
+### 수업 일정 (강의자가 정함)
+- `ContributionPost`에 `scheduledAt` (DateTime?) + `scheduleNote` (String?) 추가 — 마이그레이션 012
+- PostForm에서 **CLASS 타입일 때만** datetime-local + 메모 입력 노출
+- PostCard / 게시글 상세에 라임색 일정 박스로 표시 (`5/8 (수) 14:30` 형식)
+- 강의자가 게시글 수정 폼으로 일정 변경 가능
+- 메모 활용 예: "참여자와 조율 후 결정", "Zoom 링크는 등록 후 공유"
+
+### 게시글 수정 (`ContributionPost`)
+- 작성자 카드 하단에 **수정** 버튼 추가
+- 클릭 시 카드가 그 자리에서 **편집 폼**으로 전환 (제목/설명/보상/정원/마감/일정 모두 변경)
+- 저장 시 원래 카드로 복귀
+- 액션: `updatePost` (작성자만, 권한 체크)
+
+### 모든 기능 수정 강화
+- **TimelineTask**: 연필 아이콘 → 인라인 수정 폼 (제목/시작/마감) — `updateTimelineTask`
+- **AssignedTask (운영자 과제)**: 연필 아이콘 → 인라인 편집 카드 (제목/설명/영상/링크/마감) — `updateAssignedTask`
+  - scope/assignee는 변경 불가 (이미 생성된 completions 영향 방지)
+- **ContributionApplication 메시지**: 신청자가 PENDING 상태일 때 본인 메시지 수정 — `updateApplicationMessage`
+  - ACCEPTED/COMPLETED는 잠김
+
+### CoinLedger CRUD 정책
+- **수정/삭제 미지원** (의도적). 이벤트 소싱이라 거래 삭제 시 잔액 음수 가능 → 무결성 깨짐
+- 필요 시 "취소 송금" (역방향 거래 추가) 방식이 안전. 별도 요청 시 추가 가능
+
+---
+
+## 🆕 2026-05-07 — 버그 수정 + 이벤트 기반 웹푸시
+
+### 버그 수정 (커밋 `5b93dc1`)
+1. **타임라인 저장 시 추가분 사라지던 버그**: `/today`에서 ⏰ 타임라인 섹션의 "+ 추가"로 더한 항목이 본문 저장 시 사라지는 문제. 폼 마운트 시점의 옛 timeline state가 DB를 덮어써서 발생.
+   - `saveDailyEntry`: `timeline` payload가 `undefined`면 timelineTask 동기화 자체를 건너뜀
+   - `EntryForm`: `timelineSlot`이 제공되면 `timeline` payload를 안 보냄
+2. **시작/마감 시간 같이 등록**: startTime을 바꾸면 dueTime이 시작 ≤ 일 때 자동으로 +1시간 보정. 적용 위치: 폼 안의 타임라인 편집기 / Timeline AddTaskRow / EditTaskRow
+3. **만다라트 차트 안 보이던 문제**: `<textarea rows={2}>` + `aspect-square` 충돌로 모바일에서 셀이 찌그러져 안 보임. `<input>`으로 교체, 셀 높이 44px 고정, 폰트 10px, 보라 글로우 박스로 섹션 강조. 좁은 화면에선 가로 스크롤.
+
+### 이벤트 기반 웹푸시 (커밋 `6df3eee`)
+인프라(VAPID 키, CRON_SECRET, sw.js, lib/push.ts)는 이미 있어서 트리거만 추가:
+
+| 이벤트 | 발생 위치 | 받는 사람 |
+|---|---|---|
+| 🪙 코인 송금/발행/보상 | `lib/coin.ts:transferCoin/issueCoin` | 수령자 |
+| 📨 새 신청 | `team/actions.ts:applyToPost` | 게시자 |
+| ✅/❌ 신청 결정 | `team/actions.ts:decideApplication` | 신청자 |
+| 🎉 무보상 완료 | `team/actions.ts:completeAndReward` | 신청자 (보상 있으면 송금 푸시로 갈음) |
+| 🔥/⭐ 새 운영자 과제 | `operator/actions.ts:createAssignedTask` | 부여 받은 팀원 (본인 제외) |
+| 🌙 데일리 미작성 | `api/cron/daily-reminder` | 매일 22:00 KST cron |
+
+모든 푸시는 fire-and-forget (`.catch(() => {})`). 실패해도 본 액션은 성공.
+
+### 테스트 푸시
+- `/api/push/test` 엔드포인트 — 본인에게 테스트 발송
+- `/me` 페이지 푸시 활성화 박스 아래 "테스트 알림 받기" 버튼
+
+---
+
+## ⚠️ 2026-05-07 — 카카오 작업 의도치 않은 푸시 (보류 상태)
+
+이번 세션에 사용자가 로컬에서 작업 중이던 카카오 OAuth/리마인더 코드가 내 fix 커밋(`5b93dc1`)에 같이 묶여 production에 올라감. 사용자 결정으로 **롤백하지 않고 그대로 두되, 비활성 상태로 유지**:
+
+**프로덕션 상태**:
+- 마이그레이션 013 적용됨 (KakaoIntegration 빈 테이블 존재)
+- `/api/auth/kakao/*`, `/api/cron/kakao-reminder`, `/api/integrations/kakao` 라우트 존재
+- `KAKAO_CLIENT_ID` 등 env 미설정 → 카카오 연결 시도하면 에러 (UI는 graceful)
+- vercel.json에 `kakao-reminder` cron 등록됐지만 매일 14:00 UTC 실행 시 env 없어서 에러만 (사용자 영향 X)
+- `/me`에 `KakaoIntegrationCard` 표시되지만 "연결 안 됨" 상태로만 보임
+
+**다음 작업** (사용자 요청: "카카오 공유기능도 같이 만들 때 한번에"):
+- Kakao OAuth env 키 설정 + 동작 검증
+- Kakao 알림톡 발송 라이브러리 (오토드림과 공유 가능)
+- **Kakao 공유 기능** (게시글/리포트 공유)
+- 위 셋을 한 번에 묶어서 처리
+
+---
+
 ## 🐛 오늘 잡은 주요 버그
 
 1. **proxy.ts 버그** — `/api/auth/*` 엔드포인트가 인증 미들웨어에 의해 비공개로 분류되어 회원가입 호출이 `/login`으로 리다이렉트 → 회원가입 100% 실패. `isPublicApi` 추가로 수정.
@@ -206,8 +291,11 @@ printf "%s" "값" | vercel env add VAR_NAME production
 | 008 | `manual-migration-008-gratitude.sql` | DailyEntry.gratitude |
 | 009 | `manual-migration-009-transaction.sql` | Transaction (가계부 수입/지출) |
 | 010 | `manual-migration-010-team-coin.sql` | ContributionPost / ContributionApplication / CoinLedger + 4 enum |
+| 011 | `manual-migration-011-mandala.sql` | User.mandalaChart JSONB |
+| 012 | `manual-migration-012-class-schedule.sql` | ContributionPost.scheduledAt, scheduleNote |
+| 013 | `manual-migration-013-kakao-integration.sql` | KakaoIntegration (적용은 됐으나 기능은 비활성) |
 
-다음 마이그레이션은 `manual-migration-011-*.sql` 부터.
+다음 마이그레이션은 `manual-migration-014-*.sql` 부터.
 
 ---
 
@@ -231,10 +319,10 @@ DB 비밀번호 노출 우려 시 Supabase 대시보드 → Database → Reset p
 
 ## 🎯 다음 세션 첫 메시지 추천
 
-> "에프터마인드2기 체크메이트 이어서. NEXT_STEPS.md 봤고, 카톡 알림톡 cron부터 진행하자. 카카오 알림톡 API 키 정보는 이거야: ..."
+> "에프터마인드2기 체크메이트 이어서. NEXT_STEPS.md 봤고, 카카오 OAuth + 카카오 공유 기능을 같이 마무리하자. KAKAO_CLIENT_ID 등 키는 이거야: ..."
 
 또는
 
-> "/team 써보니 [어떤 부분]이 [어떻게] 어색해. 고쳐줘."
+> "푸시 알림 테스트해보니 [어떻게] 동작 / 동작 안 함. [구체적 증상]"
 
 또는 미흡한 부분 있으면 그대로 알려주세요.
