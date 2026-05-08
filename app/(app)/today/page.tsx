@@ -13,6 +13,7 @@ import { AssignedTasks } from "./AssignedTasks";
 import { AlarmManager } from "./AlarmManager";
 import { TodayMoneyCard } from "./TodayMoneyCard";
 import { WelcomeInstallPrompt } from "@/components/InstallPrompt";
+import { BadgeManager } from "@/components/BadgeManager";
 
 export default async function TodayPage() {
   const user = await requireUser();
@@ -89,8 +90,15 @@ export default async function TodayPage() {
     });
   }
 
+  // 위젯 흉내 (C): 앱 아이콘 배지 = 오늘 미완료 합계
+  const badgeCount =
+    (todayEntry?.timelineTasks.filter((t) => t.completedAt === null).length ?? 0) +
+    (todayEntry?.mustChecks.filter((m) => !m.isCompleted).length ?? 0) +
+    myAssignments.filter((a) => !a.isCompleted).length;
+
   return (
     <>
+      <BadgeManager count={badgeCount} />
       <WelcomeInstallPrompt />
       <PageHeader
         title={`안녕, ${user.name}!`}

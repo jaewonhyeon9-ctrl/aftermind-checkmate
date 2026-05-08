@@ -2,12 +2,12 @@
   "regions": ["icn1"],
   "crons": [
     {
-      "path": "/api/cron/daily-reminder",
-      "schedule": "0 13 * * *"
+      "path": "/api/cron/morning-summary",
+      "schedule": "0 23 * * *"
     },
     {
-      "path": "/api/cron/kakao-reminder",
-      "schedule": "0 14 * * *"
+      "path": "/api/cron/daily-reminder",
+      "schedule": "0 13 * * *"
     }
   ],
   "headers": [

@@ -1,5 +1,5 @@
-// 체크메이트 — 서비스 워커 v2 (Web Push 지원)
-const VERSION = "v2";
+// 체크메이트 — 서비스 워커 v3 (앱 아이콘 배지 지원)
+const VERSION = "v3";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -28,7 +28,18 @@ self.addEventListener("push", (event) => {
     requireInteraction: false,
     vibrate: [120, 60, 120],
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+
+  // 앱 아이콘 배지 카운트 (위젯 흉내내기 C). payload에 badge 숫자가 있으면 갱신.
+  // navigator.setAppBadge: iOS 16.4+, Android Chrome 등 지원. 미지원 환경은 자동 무시.
+  const tasks = [self.registration.showNotification(title, options)];
+  if (typeof data.badge === "number" && "setAppBadge" in self.navigator) {
+    if (data.badge > 0) {
+      tasks.push(self.navigator.setAppBadge(data.badge).catch(() => {}));
+    } else {
+      tasks.push(self.navigator.clearAppBadge().catch(() => {}));
+    }
+  }
+  event.waitUntil(Promise.all(tasks));
 });
 
 // 알림 클릭 — 앱으로 이동

@@ -35,32 +35,57 @@ export async function GET(req: Request) {
     },
   });
 
-  let pushed = 0;
-  let skipped = 0;
+  let reminded = 0;
+  let summarized = 0;
 
   for (const u of users) {
     const tz = u.timezone || "Asia/Seoul";
     const today = todayInTz(tz);
 
-    // 오늘 entry 작성 여부
     const entry = await prisma.dailyEntry.findUnique({
       where: { userId_date: { userId: u.id, date: dateOnly(today) } },
-      select: { id: true },
+      include: {
+        timelineTasks: { select: { completedAt: true, isOnTime: true } },
+        mustChecks: { select: { isCompleted: true } },
+      },
     });
 
-    if (entry) {
-      skipped++;
+    if (!entry) {
+      // 미작성자 → 리마인더
+      await sendPushToUsers([u.id], {
+        title: "🌙 데일리 리포트 작성",
+        body: `${u.name}님, 아직 오늘의 리포트를 작성 안 했어요. 짧게라도 남겨보세요.`,
+        url: "/today",
+        tag: "daily-reminder",
+      });
+      reminded++;
       continue;
     }
 
+    // 작성자 → 저녁 요약 (위젯 흉내내기 B)
+    const totalTl = entry.timelineTasks.length;
+    const doneTl = entry.timelineTasks.filter((t) => t.completedAt !== null).length;
+    const onTimeTl = entry.timelineTasks.filter((t) => t.isOnTime === true).length;
+    const totalMust = entry.mustChecks.length;
+    const doneMust = entry.mustChecks.filter((m) => m.isCompleted).length;
+    const remaining = (totalTl - doneTl) + (totalMust - doneMust);
+
+    const pct = totalTl > 0 ? Math.round((doneTl / totalTl) * 100) : 0;
+    const parts: string[] = [];
+    if (totalTl > 0) parts.push(`타임라인 ${doneTl}/${totalTl} (${pct}%)`);
+    if (onTimeTl > 0) parts.push(`온타임 ${onTimeTl}`);
+    if (totalMust > 0) parts.push(`Must ${doneMust}/${totalMust}`);
+    const body = parts.length > 0 ? parts.join(" · ") : "오늘 잘했어요!";
+
     await sendPushToUsers([u.id], {
-      title: "🌙 데일리 리포트 작성",
-      body: `${u.name}님, 아직 오늘의 리포트를 작성 안 했어요. 짧게라도 남겨보세요.`,
+      title: `🌙 ${u.name}님 오늘 결산`,
+      body,
       url: "/today",
-      tag: "daily-reminder",
+      tag: `evening-${today}`,
+      badge: remaining,
     });
-    pushed++;
+    summarized++;
   }
 
-  return NextResponse.json({ ok: true, pushed, skipped, totalUsers: users.length });
+  return NextResponse.json({ ok: true, reminded, summarized, totalUsers: users.length });
 }

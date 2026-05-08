@@ -17,6 +17,8 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  /** 앱 아이콘 배지 카운트 (0이면 배지 제거). SW가 navigator.setAppBadge 호출. */
+  badge?: number;
 };
 
 /**
