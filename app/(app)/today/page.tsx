@@ -9,6 +9,7 @@ import { todayInTz, yesterdayInTz, tomorrowInTz, dateOnly } from "@/lib/dates";
 import { EntryForm } from "./EntryForm";
 import { MustCheckList } from "./MustCheckList";
 import { Timeline } from "./Timeline";
+import { ensureRoutinesCopied } from "./actions";
 import { AssignedTasks } from "./AssignedTasks";
 import { AlarmManager } from "./AlarmManager";
 import { TodayMoneyCard } from "./TodayMoneyCard";
@@ -73,6 +74,17 @@ export default async function TodayPage() {
       where: { dailyEntryId: todayEntry.id },
       orderBy: { mustIndex: "asc" },
     });
+  }
+
+  // 오늘 entry의 timeline 이 비어있으면 사용자의 가장 최근 isRoutine 항목들을 자동 복사
+  if (todayEntry && todayEntry.timelineTasks.length === 0) {
+    const copied = await ensureRoutinesCopied(todayEntry.id);
+    if (copied > 0) {
+      todayEntry.timelineTasks = await prisma.timelineTask.findMany({
+        where: { dailyEntryId: todayEntry.id },
+        orderBy: { order: "asc" },
+      });
+    }
   }
 
   // 어제 must3 동일 처리

@@ -6,9 +6,13 @@ type IntegrationInfo = {
   id: string;
   kakaoId: string;
   dailyReminderEnabled: boolean;
+  moneyEnabled: boolean;
+  todayPlanEnabled: boolean;
   lastSentAt: string | null;
   createdAt: string;
 };
+
+type ToggleKey = "dailyReminderEnabled" | "moneyEnabled" | "todayPlanEnabled";
 
 export function KakaoIntegrationCard() {
   const [loading, setLoading] = useState(true);
@@ -48,17 +52,17 @@ export function KakaoIntegrationCard() {
     }
   }
 
-  async function toggleEnabled(enabled: boolean) {
+  async function toggleField(key: ToggleKey, enabled: boolean) {
     if (!info) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/integrations/kakao", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dailyReminderEnabled: enabled }),
+        body: JSON.stringify({ [key]: enabled }),
       });
       if (res.ok) {
-        setInfo({ ...info, dailyReminderEnabled: enabled });
+        setInfo({ ...info, [key]: enabled });
       }
     } finally {
       setSubmitting(false);
@@ -90,7 +94,7 @@ export function KakaoIntegrationCard() {
           <div className="flex-1">
             <h3 className="text-sm font-bold text-yellow-200">카카오톡 리마인드</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              카카오톡 "나에게 보내기"로 매일 데일리 리포트 리마인드를 받아보세요.
+              카카오톡 "나에게 보내기"로 매일 오늘 일정·가계부 요약을 받아보세요.
             </p>
           </div>
         </div>
@@ -129,21 +133,28 @@ export function KakaoIntegrationCard() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-        <span className="text-xs text-slate-200">매일 카카오톡 리마인드</span>
-        <button
-          onClick={() => toggleEnabled(!info.dailyReminderEnabled)}
+      <div className="space-y-1.5">
+        <ToggleRow
+          label="📝 데일리 리포트 미작성 알림"
+          hint="저녁에 아직 안 썼으면 카톡으로 푸시"
+          on={info.dailyReminderEnabled}
           disabled={submitting}
-          className={`relative w-10 h-5 rounded-full transition-colors ${
-            info.dailyReminderEnabled ? "bg-emerald-500" : "bg-slate-600"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-              info.dailyReminderEnabled ? "translate-x-5" : ""
-            }`}
-          />
-        </button>
+          onChange={(v) => toggleField("dailyReminderEnabled", v)}
+        />
+        <ToggleRow
+          label="📅 오늘 일정 요약"
+          hint="타임라인/MUST 진행 상황을 카톡으로"
+          on={info.todayPlanEnabled}
+          disabled={submitting}
+          onChange={(v) => toggleField("todayPlanEnabled", v)}
+        />
+        <ToggleRow
+          label="💰 가계부 일일 요약"
+          hint="오늘/이번 달 지출·수입을 카톡으로"
+          on={info.moneyEnabled}
+          disabled={submitting}
+          onChange={(v) => toggleField("moneyEnabled", v)}
+        />
       </div>
 
       <button
@@ -152,6 +163,43 @@ export function KakaoIntegrationCard() {
         className="w-full py-1.5 rounded-lg text-[11px] text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 transition-colors"
       >
         연동 해제
+      </button>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  hint,
+  on,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  on: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-slate-200">{label}</p>
+        {hint && <p className="text-[10px] text-slate-500 mt-0.5">{hint}</p>}
+      </div>
+      <button
+        onClick={() => onChange(!on)}
+        disabled={disabled}
+        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+          on ? "bg-emerald-500" : "bg-slate-600"
+        }`}
+        aria-label="toggle"
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+            on ? "translate-x-5" : ""
+          }`}
+        />
       </button>
     </div>
   );

@@ -79,6 +79,9 @@ model User {
   coinsSent              CoinLedger[]              @relation("CoinSender")
   coinsReceived          CoinLedger[]              @relation("CoinReceiver")
   kakaoIntegration       KakaoIntegration?
+  hourlyCheckins         HourlyCheckin[]
+  recurringExpenses      RecurringExpense[]
+  recurringChecks        RecurringCheck[]
 
   @@index([role])
 }
@@ -91,6 +94,10 @@ model KakaoIntegration {
   refreshToken         String   @db.Text
   expiresAt            DateTime
   dailyReminderEnabled Boolean  @default(true)
+  /// 매일 가계부 일일 요약 카톡 받기
+  moneyEnabled         Boolean  @default(true)
+  /// 매일 오늘 일정(타임라인+MUST3) 카톡 받기
+  todayPlanEnabled     Boolean  @default(true)
   lastSentAt           DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -189,6 +196,9 @@ model TimelineTask {
   completedAt DateTime?
   isOnTime    Boolean?
   memo        String?
+
+  /** true 면 다음 날 새 DailyEntry 생성 시 자동 복사됨 (수정 가능). */
+  isRoutine Boolean @default(false)
 
   order     Int      @default(0)
   createdAt DateTime @default(now())
@@ -301,4 +311,63 @@ model CoinLedger {
   @@index([toUserId, createdAt])
   @@index([fromUserId, createdAt])
   @@index([createdAt])
+}
+
+/// 매시간 정각 체크인. 사진 한 장 + 짧은 글(인스타 스타일 오버레이).
+/// hour 는 KST 정각 단위로 잘려 저장됨 (예: 2026-05-27 14:00:00+09).
+/// 같은 시간대에는 1인 1개만 (덮어쓰기).
+model HourlyCheckin {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hour      DateTime @db.Timestamptz
+  photoUrl  String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, hour])
+  @@index([hour])
+}
+
+/// 체크인 알림 발송 시간대 설정 (싱글톤, id=1 한 row).
+model CheckinConfig {
+  id        Int      @id @default(1)
+  enabled   Boolean  @default(true)
+  startHour Int      @default(9)   // 정각 알림 시작 시각 (0-23)
+  endHour   Int      @default(22)  // 정각 알림 종료 시각 (포함)
+  updatedAt DateTime @updatedAt
+}
+
+/// 매일 반복되는 정기 지출 항목. 가계부에서 체크하면 그 날짜의 Transaction 으로 자동 발행됨.
+model RecurringExpense {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String   // 예: "출근 커피", "주차비"
+  category  String   // 가계부 카테고리
+  amount    Int      // 원 단위
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checks RecurringCheck[]
+
+  @@index([userId, isActive, sortOrder])
+}
+
+/// 특정 날짜에 정기 지출을 체크(=발생)했는지 기록. 체크하면 Transaction 도 함께 생성.
+model RecurringCheck {
+  id                 String   @id @default(uuid())
+  recurringExpenseId String
+  recurringExpense   RecurringExpense @relation(fields: [recurringExpenseId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date               DateTime @db.Date
+  transactionId      String?  @unique
+  createdAt          DateTime @default(now())
+
+  @@unique([recurringExpenseId, date])
+  @@index([userId, date])
 }

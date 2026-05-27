@@ -7,7 +7,7 @@ import { Handshake, GraduationCap, Coins, BarChart3 } from "lucide-react";
 const tabs = [
   { href: "/team/contribute", label: "기여", icon: Handshake },
   { href: "/team/class", label: "수업", icon: GraduationCap },
-  { href: "/team/coin", label: "코인", icon: Coins },
+  { href: "/team/coin", label: "에마", icon: Coins },
   { href: "/team/report", label: "리포트", icon: BarChart3 },
 ] as const;
 

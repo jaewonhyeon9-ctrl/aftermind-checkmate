@@ -152,6 +152,27 @@ export async function toggleUserActive(userId: string) {
   revalidatePath("/feed");
 }
 
+const checkinConfigSchema = z.object({
+  enabled: z.boolean(),
+  startHour: z.number().int().min(0).max(23),
+  endHour: z.number().int().min(0).max(23),
+});
+
+export async function updateCheckinConfig(input: z.infer<typeof checkinConfigSchema>) {
+  await requireOperator();
+  const parsed = checkinConfigSchema.parse(input);
+  if (parsed.startHour > parsed.endHour) {
+    throw new Error("시작 시각이 종료 시각보다 늦을 수 없어요");
+  }
+  await prisma.checkinConfig.upsert({
+    where: { id: 1 },
+    create: { id: 1, ...parsed },
+    update: parsed,
+  });
+  revalidatePath("/operator");
+  revalidatePath("/checkin");
+}
+
 export async function toggleAssignedCompletion(completionId: string) {
   // 본인이 자기 과제 체크하는 액션 (운영자 권한 불필요)
   const { requireUser } = await import("@/lib/auth");

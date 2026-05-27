@@ -27,7 +27,7 @@ export function ApplicationActions({ applicationId, status, coinReward, applican
 
   const complete = () => {
     if (coinReward > 0) {
-      if (!confirm(`${applicantName}님에게 ${coinReward.toLocaleString("ko-KR")} 코인을 지급하고 완료 처리할까요?`)) return;
+      if (!confirm(`${applicantName}님에게 ${coinReward.toLocaleString("ko-KR")} 에마을 지급하고 완료 처리할까요?`)) return;
     } else {
       if (!confirm("완료 처리할까요?")) return;
     }
@@ -83,7 +83,7 @@ export function ApplicationActions({ applicationId, status, coinReward, applican
           {pending
             ? "처리 중..."
             : coinReward > 0
-              ? `완료 + ${coinReward.toLocaleString("ko-KR")} 코인 지급`
+              ? `완료 + ${coinReward.toLocaleString("ko-KR")} 에마 지급`
               : "완료 처리"}
         </button>
       )}

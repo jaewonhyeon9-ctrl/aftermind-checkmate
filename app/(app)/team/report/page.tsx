@@ -184,7 +184,7 @@ export default async function ReportPage({ searchParams }: { searchParams: SP })
         <section className="space-y-3">
           <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--accent-lime)" }}>
             <Coins size={14} />
-            코인 리포트
+            에마 리포트
           </h2>
 
           <div className="grid grid-cols-3 gap-2">
@@ -307,7 +307,7 @@ export default async function ReportPage({ searchParams }: { searchParams: SP })
         {ledger.length > 0 && (
           <section className="space-y-2">
             <h2 className="text-xs font-semibold tracking-wider uppercase" style={{ color: "var(--fg-muted)" }}>
-              주간 코인 거래 ({ledger.length}건)
+              주간 에마 거래 ({ledger.length}건)
             </h2>
             <div className="space-y-1.5">
               {ledger.slice(0, 30).map((t) => (

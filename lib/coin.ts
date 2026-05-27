@@ -3,7 +3,7 @@ import type { CoinReason } from "@prisma/client";
 import { sendPushToUser } from "@/lib/push";
 
 /**
- * 코인 시스템 (이벤트 소싱).
+ * 에마 시스템 (이벤트 소싱).
  * fromUserId == null → 시스템 발행 (현재 정책: 모든 사용자가 무한 발행 가능)
  * 잔액 = sum(received) - sum(sent)
  */
@@ -67,8 +67,8 @@ export async function issueCoin({ toUserId, amount, memo, relatedPostId }: Issue
   });
   // fire-and-forget push
   sendPushToUser(toUserId, {
-    title: "🪙 코인 발행 받음",
-    body: `${amount.toLocaleString("ko-KR")} 코인이 발행되어 들어왔어요${memo ? `: ${memo}` : ""}`,
+    title: "💎 에마 발행 받음",
+    body: `${amount.toLocaleString("ko-KR")} 에마이 발행되어 들어왔어요${memo ? `: ${memo}` : ""}`,
     url: "/team/coin",
     tag: `coin-${ledger.id}`,
   }).catch(() => {});
@@ -97,7 +97,7 @@ export async function transferCoin({
   if (fromUserId === toUserId) throw new Error("자기 자신에게는 송금할 수 없습니다");
 
   const balance = await getBalance(fromUserId);
-  if (balance < amount) throw new Error(`잔액 부족 (보유: ${balance.toLocaleString("ko-KR")} 코인)`);
+  if (balance < amount) throw new Error(`잔액 부족 (보유: ${balance.toLocaleString("ko-KR")} 에마)`);
 
   const ledger = await prisma.coinLedger.create({
     data: {
@@ -111,14 +111,14 @@ export async function transferCoin({
   });
   const sender = await prisma.user.findUnique({ where: { id: fromUserId }, select: { name: true } });
   const reasonLabel: Record<CoinReason, string> = {
-    ISSUE: "코인 발행",
-    TRANSFER: "코인 송금",
+    ISSUE: "에마 발행",
+    TRANSFER: "에마 송금",
     CONTRIBUTION_REWARD: "기여 보상",
     CLASS_REWARD: "수업 보상",
   };
   sendPushToUser(toUserId, {
-    title: `🪙 ${reasonLabel[reason]}`,
-    body: `${sender?.name ?? "누군가"}님이 ${amount.toLocaleString("ko-KR")} 코인을 보냈어요${memo ? `: ${memo}` : ""}`,
+    title: `💎 ${reasonLabel[reason]}`,
+    body: `${sender?.name ?? "누군가"}님이 ${amount.toLocaleString("ko-KR")} 에마을 보냈어요${memo ? `: ${memo}` : ""}`,
     url: "/team/coin",
     tag: `coin-${ledger.id}`,
   }).catch(() => {});

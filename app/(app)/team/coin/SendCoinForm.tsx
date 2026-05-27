@@ -48,8 +48,8 @@ export function SendCoinForm({ members, myId, myBalance }: Props) {
         }
         setSuccess(
           mode === "SEND"
-            ? `✓ ${amt.toLocaleString("ko-KR")} 코인 송금 완료`
-            : `✨ ${amt.toLocaleString("ko-KR")} 코인 발행 완료`
+            ? `✓ ${amt.toLocaleString("ko-KR")} 에마 송금 완료`
+            : `✨ ${amt.toLocaleString("ko-KR")} 에마 발행 완료`
         );
         setToUserId("");
         setAmount("");
@@ -106,8 +106,8 @@ export function SendCoinForm({ members, myId, myBalance }: Props) {
 
       <p className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
         {mode === "SEND"
-          ? `내 잔액에서 차감해 송금. 보유: ${myBalance.toLocaleString("ko-KR")} 코인`
-          : "새 코인을 발행해서 지급 (잔액 차감 없음)"}
+          ? `내 잔액에서 차감해 송금. 보유: ${myBalance.toLocaleString("ko-KR")} 에마`
+          : "새 에마을 발행해서 지급 (잔액 차감 없음)"}
       </p>
 
       <select
@@ -131,7 +131,7 @@ export function SendCoinForm({ members, myId, myBalance }: Props) {
       <input
         type="number"
         min={1}
-        placeholder="금액 (코인)"
+        placeholder="금액 (에마)"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         className="w-full px-3 py-2 rounded-lg text-sm tabular-nums"

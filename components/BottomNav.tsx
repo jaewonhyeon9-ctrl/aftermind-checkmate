@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarCheck, Users, Shield, User, Wallet, Handshake } from "lucide-react";
+import { CalendarCheck, Users, Shield, User, Wallet, Handshake, Camera } from "lucide-react";
 import clsx from "clsx";
 
 type NavItem = {
@@ -14,6 +14,7 @@ type NavItem = {
 
 const items: NavItem[] = [
   { href: "/today", label: "오늘", icon: CalendarCheck },
+  { href: "/checkin", label: "체크인", icon: Camera },
   { href: "/feed", label: "피드", icon: Users },
   { href: "/team", label: "팀", icon: Handshake },
   { href: "/money", label: "가계부", icon: Wallet },

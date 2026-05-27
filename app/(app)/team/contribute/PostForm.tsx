@@ -145,7 +145,7 @@ export function PostForm(props: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <label className="text-xs" style={{ color: "var(--fg-muted)" }}>
-          🪙 보상 코인
+          💎 보상 에마
           <input
             type="number"
             min={0}

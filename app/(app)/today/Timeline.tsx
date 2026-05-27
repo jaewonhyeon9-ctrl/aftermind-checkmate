@@ -11,6 +11,8 @@ import {
   uncompleteTimelineTask,
   deleteTimelineTask,
   updateTimelineTask,
+  toggleTimelineRoutine,
+  copyPreviousDayTasks,
 } from "./actions";
 import { MemoEditor } from "@/components/MemoEditor";
 
@@ -23,6 +25,7 @@ type TimelineTask = {
   isOnTime: boolean | null;
   memo: string | null;
   order: number;
+  isRoutine?: boolean;
 };
 
 export function Timeline({
@@ -38,7 +41,25 @@ export function Timeline({
   /** 카드 래퍼 없이 리스트만 (피드 카드 안에 들어갈 때) */
   bare?: boolean;
 }) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
+  const [copying, setCopying] = useState(false);
+
+  async function handleCopyPrevious() {
+    if (copying) return;
+    setCopying(true);
+    try {
+      const result = await copyPreviousDayTasks(dailyEntryId);
+      if (result.copied === 0) {
+        alert("복사할 이전 계획이 없습니다.");
+      }
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "복사 실패");
+    } finally {
+      setCopying(false);
+    }
+  }
 
   if (bare || hideAdd) {
     return (
@@ -61,18 +82,30 @@ export function Timeline({
             마감 시간 안에 완료하면 🎉 클리어 축하!
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="text-xs font-medium text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
-        >
-          <Plus size={14} /> 추가
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCopyPrevious}
+            disabled={copying}
+            className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900 disabled:opacity-50"
+            title="가장 최근 다른 날의 계획을 그대로 복사"
+          >
+            {copying ? "복사 중…" : "↩ 어제 복사"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="text-xs font-medium text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+          >
+            <Plus size={14} /> 추가
+          </button>
+        </div>
       </div>
 
       {initialTasks.length === 0 && !adding && (
         <p className="text-xs text-slate-400 py-4 text-center">
-          시간 슬롯별 할일을 추가해보세요.
+          시간 슬롯별 할일을 추가하거나, &quot;어제 복사&quot;로 이전 날 계획을
+          가져오세요.
         </p>
       )}
 
@@ -165,8 +198,13 @@ function TaskRow({ task, compact = false }: { task: TimelineTask; compact?: bool
             {task.title}
           </p>
           {!compact && (
-            <p className="text-[11px] text-slate-500 inline-flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 inline-flex items-center gap-1 flex-wrap">
               <Clock size={11} /> {task.startTime} ~ {task.dueTime}
+              {task.isRoutine && (
+                <span className="ml-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                  🔁 루틴
+                </span>
+              )}
               {isCompleted && task.isOnTime && <span className="ml-1 text-emerald-600 font-medium">온타임</span>}
               {isCompleted && task.isOnTime === false && <span className="ml-1 text-amber-600 font-medium">지각</span>}
             </p>
@@ -179,6 +217,30 @@ function TaskRow({ task, compact = false }: { task: TimelineTask; compact?: bool
         )}
         {!compact && (
           <>
+            <button
+              type="button"
+              onClick={() => {
+                startTransition(async () => {
+                  await toggleTimelineRoutine(task.id, !task.isRoutine);
+                  router.refresh();
+                });
+              }}
+              disabled={pending}
+              className={clsx(
+                "p-1",
+                task.isRoutine
+                  ? "text-indigo-600 hover:text-indigo-800"
+                  : "text-slate-400 hover:text-indigo-600"
+              )}
+              aria-label={task.isRoutine ? "루틴 해제" : "루틴 지정"}
+              title={
+                task.isRoutine
+                  ? "루틴 해제 — 매일 복사 중지"
+                  : "루틴 지정 — 매일 자동 복사"
+              }
+            >
+              🔁
+            </button>
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -219,6 +281,7 @@ function AddTaskRow({
   const [title, setTitle] = useState("");
   const [startTime, setStartTimeRaw] = useState("09:00");
   const [dueTime, setDueTime] = useState("10:00");
+  const [isRoutine, setIsRoutine] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function setStartTime(v: string) {
@@ -234,7 +297,13 @@ function AddTaskRow({
     }
     startTransition(async () => {
       try {
-        await addTimelineTask({ dailyEntryId, title: title.trim(), startTime, dueTime });
+        await addTimelineTask({
+          dailyEntryId,
+          title: title.trim(),
+          startTime,
+          dueTime,
+          isRoutine,
+        });
         onDone();
         router.refresh();
       } catch (e) {
@@ -267,6 +336,15 @@ function AddTaskRow({
           className="input bg-white"
         />
       </div>
+      <label className="flex items-center gap-2 text-xs text-slate-700">
+        <input
+          type="checkbox"
+          checked={isRoutine}
+          onChange={(e) => setIsRoutine(e.target.checked)}
+          className="accent-slate-900"
+        />
+        <span>🔁 루틴으로 등록 — 매일 자동 복사 (수정 가능)</span>
+      </label>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button

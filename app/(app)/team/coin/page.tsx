@@ -44,7 +44,7 @@ export default async function CoinPage() {
 
   return (
     <>
-      <PageHeader title="🪙 코인" subtitle={`내 잔액 ${myBalance.toLocaleString("ko-KR")}`} />
+      <PageHeader title="💎 에마" subtitle={`내 잔액 ${myBalance.toLocaleString("ko-KR")}`} />
       <div className="px-5 py-5 space-y-5">
         {/* 내 잔액 카드 */}
         <section
@@ -69,7 +69,7 @@ export default async function CoinPage() {
             {myBalance.toLocaleString("ko-KR")}
           </p>
           <p className="text-[11px] mt-1" style={{ color: "var(--fg-muted)" }}>
-            🪙 코인
+            💎 에마
           </p>
         </section>
 

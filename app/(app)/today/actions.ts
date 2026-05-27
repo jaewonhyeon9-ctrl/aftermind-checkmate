@@ -212,6 +212,7 @@ const timelineTaskSchema = z.object({
   title: z.string().min(1).max(80),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   dueTime: z.string().regex(/^\d{2}:\d{2}$/),
+  isRoutine: z.boolean().optional(),
 });
 
 export async function addTimelineTask(input: z.infer<typeof timelineTaskSchema>) {
@@ -236,12 +237,144 @@ export async function addTimelineTask(input: z.infer<typeof timelineTaskSchema>)
       title: parsed.title,
       startTime: parsed.startTime,
       dueTime: parsed.dueTime,
+      isRoutine: parsed.isRoutine ?? false,
       order: (last?.order ?? -1) + 1,
     },
   });
 
   revalidatePath("/today");
   return task;
+}
+
+/**
+ * 기존 task의 isRoutine 토글 — 루틴 지정/해제
+ */
+export async function toggleTimelineRoutine(taskId: string, isRoutine: boolean) {
+  const user = await requireUser();
+
+  const task = await prisma.timelineTask.findUnique({
+    where: { id: taskId },
+    include: { dailyEntry: { select: { userId: true } } },
+  });
+  if (!task || task.dailyEntry.userId !== user.id) throw new Error("권한 없음");
+
+  await prisma.timelineTask.update({
+    where: { id: taskId },
+    data: { isRoutine },
+  });
+
+  revalidatePath("/today");
+}
+
+/**
+ * 전날(또는 가장 최근 다른 날)의 timeline 을 현재 entry 로 모두 복사한다.
+ * "어제 계획 복사" 버튼용. 기존 task 뒤에 append.
+ */
+export async function copyPreviousDayTasks(dailyEntryId: string) {
+  const user = await requireUser();
+
+  const entry = await prisma.dailyEntry.findUnique({
+    where: { id: dailyEntryId },
+    select: { id: true, userId: true, date: true },
+  });
+  if (!entry || entry.userId !== user.id) throw new Error("권한 없음");
+
+  const prev = await prisma.dailyEntry.findFirst({
+    where: {
+      userId: user.id,
+      date: { lt: entry.date },
+      timelineTasks: { some: {} },
+    },
+    orderBy: { date: "desc" },
+    select: {
+      timelineTasks: {
+        orderBy: { order: "asc" },
+        select: {
+          title: true,
+          startTime: true,
+          dueTime: true,
+          isRoutine: true,
+        },
+      },
+    },
+  });
+
+  if (!prev || prev.timelineTasks.length === 0) {
+    return { copied: 0 };
+  }
+
+  const existingCount = await prisma.timelineTask.count({
+    where: { dailyEntryId: entry.id },
+  });
+
+  await prisma.timelineTask.createMany({
+    data: prev.timelineTasks.map((t, i) => ({
+      dailyEntryId: entry.id,
+      title: t.title,
+      startTime: t.startTime,
+      dueTime: t.dueTime,
+      isRoutine: t.isRoutine,
+      order: existingCount + i,
+    })),
+  });
+
+  revalidatePath("/today");
+  return { copied: prev.timelineTasks.length };
+}
+
+/**
+ * 새 DailyEntry 첫 로드 시 — 사용자의 가장 최근 날짜의 isRoutine=true 항목들을 자동 복사.
+ * 이미 task 가 있는 entry 는 건드리지 않는다.
+ */
+export async function ensureRoutinesCopied(dailyEntryId: string): Promise<number> {
+  const user = await requireUser();
+
+  const entry = await prisma.dailyEntry.findUnique({
+    where: { id: dailyEntryId },
+    select: { id: true, userId: true, date: true },
+  });
+  if (!entry || entry.userId !== user.id) return 0;
+
+  const existingCount = await prisma.timelineTask.count({
+    where: { dailyEntryId: entry.id },
+  });
+  if (existingCount > 0) return 0;
+
+  // 가장 최근 isRoutine=true 항목이 있는 DailyEntry 찾기
+  const lastRoutineEntry = await prisma.dailyEntry.findFirst({
+    where: {
+      userId: user.id,
+      date: { lt: entry.date },
+      timelineTasks: { some: { isRoutine: true } },
+    },
+    orderBy: { date: "desc" },
+    select: {
+      timelineTasks: {
+        where: { isRoutine: true },
+        orderBy: { order: "asc" },
+        select: {
+          title: true,
+          startTime: true,
+          dueTime: true,
+        },
+      },
+    },
+  });
+
+  if (!lastRoutineEntry || lastRoutineEntry.timelineTasks.length === 0) return 0;
+
+  await prisma.timelineTask.createMany({
+    data: lastRoutineEntry.timelineTasks.map((t, i) => ({
+      dailyEntryId: entry.id,
+      title: t.title,
+      startTime: t.startTime,
+      dueTime: t.dueTime,
+      isRoutine: true,
+      order: i,
+    })),
+  });
+
+  return lastRoutineEntry.timelineTasks.length;
 }
 
 export async function completeTimelineTask(taskId: string) {
@@ -332,6 +465,7 @@ const updateTimelineSchema = z.object({
   title: z.string().min(1).max(80),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   dueTime: z.string().regex(/^\d{2}:\d{2}$/),
+  isRoutine: z.boolean().optional(),
 });
 
 export async function updateTimelineTask(input: z.infer<typeof updateTimelineSchema>) {
@@ -349,6 +483,7 @@ export async function updateTimelineTask(input: z.infer<typeof updateTimelineSch
       title: parsed.title.trim(),
       startTime: parsed.startTime,
       dueTime: parsed.dueTime,
+      ...(parsed.isRoutine !== undefined ? { isRoutine: parsed.isRoutine } : {}),
     },
   });
   revalidatePath("/today");

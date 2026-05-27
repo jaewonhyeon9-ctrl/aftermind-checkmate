@@ -8,6 +8,7 @@ import { TransactionForm } from "./TransactionForm";
 import { TransactionList } from "./TransactionList";
 import { SmsImportPanel } from "./SmsImportPanel";
 import { OcrReceiptPanel } from "./OcrReceiptPanel";
+import { RecurringExpensePanel } from "./RecurringExpensePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,32 @@ export default async function MoneyPage() {
   const monthStart = monthKey + "-01";
   const monthEndExcl = nextMonthStart(monthKey);
 
-  const monthly = await prisma.transaction.findMany({
-    where: {
-      userId: user.id,
-      date: { gte: dateOnly(monthStart), lt: dateOnly(monthEndExcl) },
-    },
-    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-  });
+  const [monthly, recurring, todayChecks] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        userId: user.id,
+        date: { gte: dateOnly(monthStart), lt: dateOnly(monthEndExcl) },
+      },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.recurringExpense.findMany({
+      where: { userId: user.id, isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.recurringCheck.findMany({
+      where: { userId: user.id, date: dateOnly(today) },
+      select: { recurringExpenseId: true },
+    }),
+  ]);
+
+  const checkedSet = new Set(todayChecks.map((c) => c.recurringExpenseId));
+  const recurringItems = recurring.map((r) => ({
+    id: r.id,
+    label: r.label,
+    category: r.category,
+    amount: r.amount,
+    checkedToday: checkedSet.has(r.id),
+  }));
 
   let income = 0;
   let expense = 0;
@@ -80,6 +100,8 @@ export default async function MoneyPage() {
             </div>
           )}
         </section>
+
+        <RecurringExpensePanel items={recurringItems} today={today} />
 
         <SmsImportPanel />
 

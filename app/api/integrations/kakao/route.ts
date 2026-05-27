@@ -13,6 +13,8 @@ export async function GET() {
       id: true,
       kakaoId: true,
       dailyReminderEnabled: true,
+      moneyEnabled: true,
+      todayPlanEnabled: true,
       lastSentAt: true,
       createdAt: true,
     },
@@ -23,20 +25,31 @@ export async function GET() {
   });
 }
 
-// PATCH: 데일리 리마인더 ON/OFF 토글
+// PATCH: 채널별 ON/OFF 토글 (dailyReminderEnabled | moneyEnabled | todayPlanEnabled)
 export async function PATCH(req: Request) {
   const user = await requireUser();
   const body = (await req.json().catch(() => ({}))) as {
     dailyReminderEnabled?: boolean;
+    moneyEnabled?: boolean;
+    todayPlanEnabled?: boolean;
   };
-  if (typeof body.dailyReminderEnabled !== "boolean") {
+  const data: Record<string, boolean> = {};
+  if (typeof body.dailyReminderEnabled === "boolean") data.dailyReminderEnabled = body.dailyReminderEnabled;
+  if (typeof body.moneyEnabled === "boolean") data.moneyEnabled = body.moneyEnabled;
+  if (typeof body.todayPlanEnabled === "boolean") data.todayPlanEnabled = body.todayPlanEnabled;
+  if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
   const updated = await prisma.kakaoIntegration.update({
     where: { userId: user.id },
-    data: { dailyReminderEnabled: body.dailyReminderEnabled },
+    data,
   });
-  return NextResponse.json({ ok: true, dailyReminderEnabled: updated.dailyReminderEnabled });
+  return NextResponse.json({
+    ok: true,
+    dailyReminderEnabled: updated.dailyReminderEnabled,
+    moneyEnabled: updated.moneyEnabled,
+    todayPlanEnabled: updated.todayPlanEnabled,
+  });
 }
 
 // DELETE: 연동 해제

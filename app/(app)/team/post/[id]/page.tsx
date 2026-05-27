@@ -104,7 +104,7 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
             {post.coinReward > 0 && (
               <span className="inline-flex items-center gap-1" style={{ color: "var(--accent-lime)" }}>
                 <Coins size={12} />
-                보상 {post.coinReward.toLocaleString("ko-KR")} 코인
+                보상 {post.coinReward.toLocaleString("ko-KR")} 에마
               </span>
             )}
             {post.maxApplicants && (
