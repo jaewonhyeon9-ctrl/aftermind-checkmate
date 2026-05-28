@@ -89,6 +89,7 @@ export async function submitCheckin(formData: FormData) {
   }
 
   revalidatePath("/checkin");
+  revalidatePath("/checkstagram");
   revalidatePath("/feed");
   return { rewardedEmma: isFirst ? 50 : 0 };
 }
@@ -106,5 +107,6 @@ export async function deleteCheckin(id: string) {
   await prisma.hourlyCheckin.delete({ where: { id } });
 
   revalidatePath("/checkin");
+  revalidatePath("/checkstagram");
   revalidatePath("/feed");
 }

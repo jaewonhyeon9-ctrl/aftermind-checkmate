@@ -58,7 +58,7 @@ export async function GET(req: Request) {
   const result = await sendPushToUsers(userIds, {
     title: `📸 ${hourLabel} 체크인 시간`,
     body: "지금 뭐 하고 있어요? 사진 한 장 + 한 줄로 남겨주세요.",
-    url: "/checkin",
+    url: "/checkstagram",
     tag: `checkin-${kstHour}`,
   });
 

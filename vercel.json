@@ -20,7 +20,7 @@
   ],
   "headers": [
     {
-      "source": "/(login|register|today|feed|operator|me|checkin|entry/.*)",
+      "source": "/(login|register|today|feed|operator|me|checkin|checkstagram|entry/.*)",
       "headers": [
         { "key": "Cache-Control", "value": "private, no-cache, must-revalidate" }
       ]

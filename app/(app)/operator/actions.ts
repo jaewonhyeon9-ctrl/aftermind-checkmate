@@ -171,6 +171,7 @@ export async function updateCheckinConfig(input: z.infer<typeof checkinConfigSch
   });
   revalidatePath("/operator");
   revalidatePath("/checkin");
+  revalidatePath("/checkstagram");
 }
 
 export async function toggleAssignedCompletion(completionId: string) {

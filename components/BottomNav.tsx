@@ -14,7 +14,7 @@ type NavItem = {
 
 const items: NavItem[] = [
   { href: "/today", label: "오늘", icon: CalendarCheck },
-  { href: "/checkin", label: "체크인", icon: Camera },
+  { href: "/checkstagram", label: "체크스타그램", icon: Camera },
   { href: "/feed", label: "피드", icon: Users },
   { href: "/team", label: "팀", icon: Handshake },
   { href: "/money", label: "가계부", icon: Wallet },
