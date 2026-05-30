@@ -57,11 +57,10 @@ export async function submitCheckin(formData: FormData) {
   const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const photoUrl = pub.publicUrl;
 
-  // 같은 시간대 기존 체크인이 있으면 이전 사진 삭제 후 덮어쓰기 (보상은 1회만)
+  // 같은 시간대 기존 체크인이 있으면 이전 사진 삭제 후 덮어쓰기
   const existing = await prisma.hourlyCheckin.findUnique({
     where: { userId_hour: { userId: user.id, hour } },
   });
-  let isFirst = false;
   if (existing) {
     const oldPath = existing.photoUrl.split(`/object/public/${BUCKET}/`)[1];
     if (oldPath) {
@@ -75,23 +74,34 @@ export async function submitCheckin(formData: FormData) {
     await prisma.hourlyCheckin.create({
       data: { userId: user.id, hour, photoUrl, message: parsed.message },
     });
-    isFirst = true;
   }
 
-  // 같은 정각에 처음 올린 사진에만 50 에마 지급
-  if (isFirst) {
+  // 50 에마 보상 — user+hour 당 1회만. 사진 삭제 후 재업로드해도 중복 지급 안 됨.
+  // CoinLedger 메모에 [checkin:<ISO hour>] 태그를 박아두고 그 태그로 dedup.
+  const hourTag = `[checkin:${hour.toISOString().slice(0, 13)}:00]`;
+  const alreadyRewarded = await prisma.coinLedger.findFirst({
+    where: {
+      toUserId: user.id,
+      reason: "ISSUE",
+      memo: { contains: hourTag },
+    },
+    select: { id: true },
+  });
+  let rewardedEmma = 0;
+  if (!alreadyRewarded) {
     const hourLabel = hour.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false });
     await issueCoin({
       toUserId: user.id,
       amount: 50,
-      memo: `📸 ${hourLabel} 체크인 보상`,
+      memo: `📸 ${hourLabel} 체크인 보상 ${hourTag}`,
     }).catch(() => {});
+    rewardedEmma = 50;
   }
 
   revalidatePath("/checkin");
   revalidatePath("/checkstagram");
   revalidatePath("/feed");
-  return { rewardedEmma: isFirst ? 50 : 0 };
+  return { rewardedEmma };
 }
 
 export async function deleteCheckin(id: string) {

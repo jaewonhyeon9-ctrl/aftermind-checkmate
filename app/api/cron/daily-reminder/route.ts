@@ -14,11 +14,11 @@ export const maxDuration = 60;
  * 사용자별 timezone에 맞춰 "오늘" 데일리 리포트 작성 안 한 사람에게 푸시.
  */
 export async function GET(req: Request) {
-  // Vercel cron 자체 인증 또는 CRON_SECRET 검증
+  // Vercel cron 이 자동 주입하는 Authorization: Bearer ${CRON_SECRET} 검증
+  // (단순 헤더 존재 체크는 우회 가능하므로 사용하지 않음)
   const auth = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  const isVercelCron = req.headers.get("x-vercel-cron-signature") !== null;
-  if (!isVercelCron && (!cronSecret || auth !== `Bearer ${cronSecret}`)) {
+  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
