@@ -117,6 +117,7 @@ type MemberCardProps = {
       isOnTime: boolean | null;
       memo: string | null;
       order: number;
+      isRoutine: boolean;
     }[];
     mustChecks: {
       id: string;
