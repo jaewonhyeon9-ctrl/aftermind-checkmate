@@ -1,0 +1,25 @@
+name: Hourly Checkin Push
+
+# Vercel Hobby 플랜은 daily cron만 허용해서 매시간 알림은 GitHub Actions로 처리.
+# 매시간 정각마다 호출 — 발송 여부는 라우트가 CheckinConfig.startHour/endHour 로 직접 판단.
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger hourly-checkin endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret이 설정 안 됨. Settings → Secrets → Actions에서 추가 필요."
+            exit 1
+          fi
+          response=$(curl -fsS -w "\n%{http_code}" -X GET \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://aftermind-checkmate.vercel.app/api/cron/hourly-checkin)
+          echo "$response"
