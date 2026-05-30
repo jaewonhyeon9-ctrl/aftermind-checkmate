@@ -1,5 +1,5 @@
-// 체크메이트 — 서비스 워커 v3 (앱 아이콘 배지 지원)
-const VERSION = "v3";
+// 체크메이트 — 서비스 워커 v4 (체크스타그램 추가, 캐시 무효화)
+const VERSION = "v4";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
