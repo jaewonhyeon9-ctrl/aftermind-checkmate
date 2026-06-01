@@ -1,5 +1,3 @@
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import { PageHeader } from "@/components/PageHeader";
 import { requireOperator } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,11 +5,13 @@ import { TeamMemberList } from "./TeamMemberList";
 import { AssignTaskForm } from "./AssignTaskForm";
 import { AssignedTaskList } from "./AssignedTaskList";
 import { CheckinConfigCard } from "./CheckinConfigCard";
+import { AnnouncementPanel } from "./AnnouncementPanel";
+import { BroadcastTimelineForm } from "./BroadcastTimelineForm";
 
 export default async function OperatorPage() {
   const me = await requireOperator();
 
-  const [members, tasks, checkinConfig] = await Promise.all([
+  const [members, tasks, checkinConfig, announcements] = await Promise.all([
     prisma.user.findMany({
       orderBy: [{ role: "desc" }, { name: "asc" }],
     }),
@@ -27,6 +27,11 @@ export default async function OperatorPage() {
       },
     }),
     prisma.checkinConfig.findUnique({ where: { id: 1 } }),
+    prisma.announcement.findMany({
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+      include: { author: { select: { id: true, name: true } } },
+      take: 30,
+    }),
   ]);
 
   const cfg = checkinConfig ?? { enabled: true, startHour: 9, endHour: 22 };
@@ -35,6 +40,14 @@ export default async function OperatorPage() {
     <>
       <PageHeader title="운영자" subtitle="팀원 관리 · 과제 부여" />
       <div className="px-5 py-5 space-y-6">
+        <Section title="📢 공지사항" subtitle="체크 없는 정보용 게시물 — 팀원 오늘 화면 상단에 표시">
+          <AnnouncementPanel announcements={announcements} myId={me.id} />
+        </Section>
+
+        <Section title="🗓 팀원 일정 일괄 추가" subtitle="모든 활성 팀원의 해당 날짜 타임라인에 동일 일정을 한 번에 추가">
+          <BroadcastTimelineForm memberCount={members.filter((m) => m.isActive).length} />
+        </Section>
+
         <Section title="📸 체크인 알림 설정" subtitle="시작/종료 시각 안에서 매 정각에 알림 발송">
           <CheckinConfigCard
             initial={{ enabled: cfg.enabled, startHour: cfg.startHour, endHour: cfg.endHour }}

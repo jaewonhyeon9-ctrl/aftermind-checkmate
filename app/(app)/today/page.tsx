@@ -13,6 +13,7 @@ import { ensureRoutinesCopied } from "./actions";
 import { AssignedTasks } from "./AssignedTasks";
 import { AlarmManager } from "./AlarmManager";
 import { TodayMoneyCard } from "./TodayMoneyCard";
+import { AnnouncementBoard } from "./AnnouncementBoard";
 import { WelcomeInstallPrompt } from "@/components/InstallPrompt";
 import { BadgeManager } from "@/components/BadgeManager";
 
@@ -24,7 +25,8 @@ export default async function TodayPage() {
   const yesterday = yesterdayInTz(tz);
   const tomorrow = tomorrowInTz(tz);
 
-  const [todayEntry, yEntry, myAssignments, todayTransactions] = await Promise.all([
+  const nowDate = new Date();
+  const [todayEntry, yEntry, myAssignments, todayTransactions, announcements] = await Promise.all([
     prisma.dailyEntry.findUnique({
       where: { userId_date: { userId: user.id, date: dateOnly(today) } },
       include: {
@@ -58,6 +60,17 @@ export default async function TodayPage() {
       where: { userId: user.id, date: dateOnly(today) },
       orderBy: { createdAt: "desc" },
       select: { id: true, type: true, category: true, amount: true, note: true },
+    }),
+    prisma.announcement.findMany({
+      where: {
+        AND: [
+          { OR: [{ startAt: null }, { startAt: { lte: nowDate } }] },
+          { OR: [{ endAt: null }, { endAt: { gte: nowDate } }] },
+        ],
+      },
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+      include: { author: { select: { name: true } } },
+      take: 10,
     }),
   ]);
 
@@ -128,6 +141,8 @@ export default async function TodayPage() {
         }
       />
       <div className="px-5 py-5 space-y-5">
+        {announcements.length > 0 && <AnnouncementBoard items={announcements} />}
+
         {myAssignments.length > 0 && <AssignedTasks items={myAssignments} />}
 
         <TodayMoneyCard items={todayTransactions} />

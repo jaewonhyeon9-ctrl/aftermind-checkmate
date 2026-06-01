@@ -174,6 +174,157 @@ export async function updateCheckinConfig(input: z.infer<typeof checkinConfigSch
   revalidatePath("/checkstagram");
 }
 
+// ============ 공지사항 (Announcement) ============
+
+const announcementSchema = z.object({
+  title: z.string().min(1).max(120),
+  body: z.string().max(4000).nullable(),
+  pinned: z.boolean(),
+  startAt: z.string().nullable(),
+  endAt: z.string().nullable(),
+});
+
+export async function createAnnouncement(input: z.infer<typeof announcementSchema>) {
+  const operator = await requireOperator();
+  const parsed = announcementSchema.parse(input);
+
+  const a = await prisma.announcement.create({
+    data: {
+      authorId: operator.id,
+      title: parsed.title.trim(),
+      body: parsed.body?.trim() || null,
+      pinned: parsed.pinned,
+      startAt: parsed.startAt ? new Date(parsed.startAt + "T00:00:00.000Z") : null,
+      endAt: parsed.endAt ? new Date(parsed.endAt + "T23:59:59.000Z") : null,
+    },
+  });
+
+  // 전체 활성 팀원에게 푸시 (운영자 본인 제외)
+  const members = await prisma.user.findMany({
+    where: { isActive: true, id: { not: operator.id } },
+    select: { id: true },
+  });
+  if (members.length > 0) {
+    sendPushToUsers(
+      members.map((m) => m.id),
+      {
+        title: "📢 새 공지사항",
+        body: parsed.title,
+        url: "/today",
+        tag: `announcement-${a.id}`,
+      }
+    ).catch(() => {});
+  }
+
+  revalidatePath("/operator");
+  revalidatePath("/today");
+}
+
+const updateAnnouncementSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1).max(120),
+  body: z.string().max(4000).nullable(),
+  pinned: z.boolean(),
+  startAt: z.string().nullable(),
+  endAt: z.string().nullable(),
+});
+
+export async function updateAnnouncement(input: z.infer<typeof updateAnnouncementSchema>) {
+  await requireOperator();
+  const parsed = updateAnnouncementSchema.parse(input);
+
+  await prisma.announcement.update({
+    where: { id: parsed.id },
+    data: {
+      title: parsed.title.trim(),
+      body: parsed.body?.trim() || null,
+      pinned: parsed.pinned,
+      startAt: parsed.startAt ? new Date(parsed.startAt + "T00:00:00.000Z") : null,
+      endAt: parsed.endAt ? new Date(parsed.endAt + "T23:59:59.000Z") : null,
+    },
+  });
+
+  revalidatePath("/operator");
+  revalidatePath("/today");
+}
+
+export async function deleteAnnouncement(id: string) {
+  await requireOperator();
+  await prisma.announcement.delete({ where: { id } });
+  revalidatePath("/operator");
+  revalidatePath("/today");
+}
+
+// ============ 전체 팀원 타임라인 동시 푸시 ============
+
+const broadcastTimelineSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  title: z.string().min(1).max(80),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  dueTime: z.string().regex(/^\d{2}:\d{2}$/),
+  isRoutine: z.boolean().default(false),
+});
+
+/**
+ * 모든 활성 팀원의 지정한 날짜 DailyEntry에 동일한 TimelineTask를 일괄 추가.
+ * DailyEntry가 없으면 생성. 작성자 본인을 포함하여 모든 활성 팀원에게 적용됨.
+ */
+export async function broadcastTimelineTask(
+  input: z.infer<typeof broadcastTimelineSchema>
+) {
+  const operator = await requireOperator();
+  const parsed = broadcastTimelineSchema.parse(input);
+
+  const dateObj = new Date(parsed.date + "T00:00:00.000Z");
+  const members = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+
+  let created = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const m of members) {
+      const entry = await tx.dailyEntry.upsert({
+        where: { userId_date: { userId: m.id, date: dateObj } },
+        create: { userId: m.id, date: dateObj },
+        update: {},
+      });
+      const last = await tx.timelineTask.findFirst({
+        where: { dailyEntryId: entry.id },
+        orderBy: { order: "desc" },
+        select: { order: true },
+      });
+      await tx.timelineTask.create({
+        data: {
+          dailyEntryId: entry.id,
+          title: parsed.title.trim(),
+          startTime: parsed.startTime,
+          dueTime: parsed.dueTime,
+          isRoutine: parsed.isRoutine,
+          order: (last?.order ?? -1) + 1,
+        },
+      });
+      created += 1;
+    }
+  });
+
+  // 본인 제외 푸시
+  const recipientIds = members.map((m) => m.id).filter((id) => id !== operator.id);
+  if (recipientIds.length > 0) {
+    sendPushToUsers(recipientIds, {
+      title: "🗓 새 일정",
+      body: `${parsed.startTime} ${parsed.title}`,
+      url: "/today",
+      tag: `broadcast-${parsed.date}-${Date.now()}`,
+    }).catch(() => {});
+  }
+
+  revalidatePath("/operator");
+  revalidatePath("/today");
+  revalidatePath("/feed");
+  return { created };
+}
+
 export async function toggleAssignedCompletion(completionId: string) {
   // 본인이 자기 과제 체크하는 액션 (운영자 권한 불필요)
   const { requireUser } = await import("@/lib/auth");

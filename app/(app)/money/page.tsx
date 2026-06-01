@@ -9,6 +9,7 @@ import { TransactionList } from "./TransactionList";
 import { SmsImportPanel } from "./SmsImportPanel";
 import { OcrReceiptPanel } from "./OcrReceiptPanel";
 import { RecurringExpensePanel } from "./RecurringExpensePanel";
+import { ExportExcelButton } from "./ExportExcelButton";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export default async function MoneyPage() {
       <PageHeader
         title="💰 가계부"
         subtitle={format(new Date(monthStart + "T00:00:00"), "yyyy년 M월", { locale: ko })}
+        right={<ExportExcelButton defaultFrom={monthStart} defaultTo={today} />}
       />
       <div className="px-5 py-5 space-y-5">
         <section className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">

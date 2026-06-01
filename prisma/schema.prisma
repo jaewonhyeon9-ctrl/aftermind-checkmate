@@ -82,8 +82,27 @@ model User {
   hourlyCheckins         HourlyCheckin[]
   recurringExpenses      RecurringExpense[]
   recurringChecks        RecurringCheck[]
+  announcements          Announcement[]            @relation("AnnouncementAuthor")
 
   @@index([role])
+}
+
+/// 운영자가 게시하는 공지사항. 체크박스 없음 — 정보 전달용.
+/// pinned=true면 /today 상단 고정. startAt/endAt 으로 표시 기간 제한 가능 (nullable이면 무제한).
+model Announcement {
+  id        String    @id @default(uuid())
+  authorId  String
+  author    User      @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title     String
+  body      String?   @db.Text
+  pinned    Boolean   @default(true)
+  startAt   DateTime?
+  endAt     DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([pinned, createdAt])
+  @@index([startAt, endAt])
 }
 
 model KakaoIntegration {
