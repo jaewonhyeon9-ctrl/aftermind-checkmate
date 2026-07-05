@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUser } from "@/lib/push";
 import { todayInTz, dateOnly } from "@/lib/dates";
+import { getActivePushableMemberships } from "@/lib/program";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,18 +24,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const memberships = await prisma.membership.findMany({
-    where: {
-      status: "ACTIVE",
-      program: { isActive: true },
-      user: { isActive: true, pushSubscriptions: { some: {} } },
-    },
-    select: {
-      userId: true,
-      programId: true,
-      user: { select: { name: true, timezone: true } },
-    },
-  });
+  const memberships = await getActivePushableMemberships();
 
   let nagged = 0;
   let skipped = 0;

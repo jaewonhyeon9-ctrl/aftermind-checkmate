@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { CoinReason } from "@prisma/client";
 import { sendPushToUser } from "@/lib/push";
+import { isActiveMember } from "@/lib/program";
 
 /**
  * 에마 시스템 (이벤트 소싱). 과정(Program)별로 완전히 분리된 경제.
@@ -61,6 +62,9 @@ type IssueParams = {
 /** 시스템 발행 (fromUserId = null). 무한 발행. */
 export async function issueCoin({ toUserId, amount, program, memo, relatedPostId }: IssueParams) {
   if (!Number.isInteger(amount) || amount <= 0) throw new Error("amount는 양의 정수여야 합니다");
+  if (!(await isActiveMember(toUserId, program.id))) {
+    throw new Error("받는 사람이 이 과정 소속이 아니에요");
+  }
   const ledger = await prisma.coinLedger.create({
     data: {
       fromUserId: null,
@@ -104,6 +108,9 @@ export async function transferCoin({
 }: TransferParams) {
   if (!Number.isInteger(amount) || amount <= 0) throw new Error("amount는 양의 정수여야 합니다");
   if (fromUserId === toUserId) throw new Error("자기 자신에게는 송금할 수 없습니다");
+  if (!(await isActiveMember(toUserId, program.id))) {
+    throw new Error("받는 사람이 이 과정 소속이 아니에요");
+  }
 
   const balance = await getBalance(fromUserId, program.id);
   if (balance < amount) throw new Error(`잔액 부족 (보유: ${balance.toLocaleString("ko-KR")} 에마)`);

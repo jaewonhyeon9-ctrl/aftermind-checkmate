@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { requireOperatorWithProgram, getActiveProgramMemberIds } from "@/lib/program";
+import { requireOperatorWithProgram, getActiveProgramMemberIds, isActiveMember } from "@/lib/program";
 import { sendPushToUsers } from "@/lib/push";
 
 const createTaskSchema = z
@@ -35,6 +35,9 @@ export async function createAssignedTask(
   if (parsed.scope === "ALL") {
     targetUserIds = await getActiveProgramMemberIds(program.id);
   } else {
+    if (!(await isActiveMember(parsed.assigneeId!, program.id))) {
+      throw new Error("받는 사람이 이 과정 소속이 아니에요");
+    }
     targetUserIds = [parsed.assigneeId!];
   }
 
@@ -141,7 +144,9 @@ export async function updateUserRole(input: z.infer<typeof roleSchema>) {
 
 /**
  * 이 과정에서 팀원을 비활성화/재활성화한다. Membership에는 isActive가 없으므로
- * status를 ACTIVE ⇄ REJECTED로 토글한다 (다른 과정 소속·User 전역 상태엔 영향 없음).
+ * status를 ACTIVE ⇄ SUSPENDED로 토글한다 (다른 과정 소속·User 전역 상태엔 영향 없음).
+ * REJECTED는 "가입 신청 거절"만을 뜻하므로 여기서는 쓰지 않는다 — 두 상태를 구분해야
+ * 나중에 "거절된 신청자"와 "활동하다 비활성화된 팀원"을 다르게 다룰 수 있다.
  */
 export async function toggleUserActive(userId: string) {
   const { program } = await requireOperatorWithProgram();
@@ -152,7 +157,7 @@ export async function toggleUserActive(userId: string) {
 
   await prisma.membership.update({
     where: { userId_programId: { userId, programId: program.id } },
-    data: { status: membership.status === "ACTIVE" ? "REJECTED" : "ACTIVE" },
+    data: { status: membership.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" },
   });
   revalidatePath("/operator");
   revalidatePath("/feed");

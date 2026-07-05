@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { requireUserWithProgram } from "@/lib/program";
+import { requireUserWithProgram, isActiveMember } from "@/lib/program";
 import { issueCoin, transferCoin } from "@/lib/coin";
 import { sendPushToUser } from "@/lib/push";
 
@@ -119,13 +119,13 @@ const applySchema = z.object({
 });
 
 export async function applyToPost(input: z.infer<typeof applySchema>) {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const parsed = applySchema.parse(input);
   const post = await prisma.contributionPost.findUnique({
     where: { id: parsed.postId },
     include: { applications: { where: { status: { in: ["ACCEPTED", "PENDING", "COMPLETED"] } } } },
   });
-  if (!post) throw new Error("게시글이 없습니다");
+  if (!post || post.programId !== program.id) throw new Error("게시글이 없습니다");
   if (post.status === "CLOSED") throw new Error("마감된 게시글입니다");
   if (post.authorId === user.id) throw new Error("본인 게시글에는 신청할 수 없습니다");
   if (post.deadline && post.deadline.getTime() < Date.now()) throw new Error("마감 기한이 지났습니다");
@@ -240,6 +240,9 @@ export async function completeAndReward(input: z.infer<typeof completeSchema>) {
   });
   if (!app || app.post.authorId !== user.id) throw new Error("권한 없음");
   if (app.status === "COMPLETED") throw new Error("이미 완료 처리됨");
+  if (!(await isActiveMember(app.applicantId, app.post.programId))) {
+    throw new Error("신청자가 더 이상 이 과정 소속이 아니에요");
+  }
 
   const reason = app.post.type === "CLASS" ? "CLASS_REWARD" : "CONTRIBUTION_REWARD";
 

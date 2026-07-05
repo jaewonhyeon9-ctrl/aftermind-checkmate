@@ -58,6 +58,7 @@ enum MembershipStatus {
   PENDING
   ACTIVE
   REJECTED
+  SUSPENDED
 }
 
 /// 과정(코호트). 에프터마인드 2기, 1인기업가 과정 등 — 앱 하나로 여러 과정을 동시 운영.

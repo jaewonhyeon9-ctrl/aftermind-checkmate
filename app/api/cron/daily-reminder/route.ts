@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPushToUsers } from "@/lib/push";
 import { todayInTz, dateOnly } from "@/lib/dates";
+import { getActivePushableMemberships } from "@/lib/program";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,18 +25,7 @@ export async function GET(req: Request) {
 
   // 활성 멤버십(과정별) + 푸시 구독 있는 사람만. DailyEntry가 과정별로 스코프되므로
   // 유저 단위가 아니라 (유저, 과정) 멤버십 단위로 순회한다.
-  const memberships = await prisma.membership.findMany({
-    where: {
-      status: "ACTIVE",
-      program: { isActive: true },
-      user: { isActive: true, pushSubscriptions: { some: {} } },
-    },
-    select: {
-      userId: true,
-      programId: true,
-      user: { select: { name: true, timezone: true } },
-    },
-  });
+  const memberships = await getActivePushableMemberships();
 
   let reminded = 0;
   let summarized = 0;

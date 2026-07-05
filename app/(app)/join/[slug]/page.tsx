@@ -28,7 +28,13 @@ export default async function JoinProgramPage({
         <JoinProgramCard
           programId={program.id}
           programName={program.name}
-          status={membership?.status === "PENDING" || membership?.status === "REJECTED" ? membership.status : null}
+          status={
+            membership?.status === "PENDING" ||
+            membership?.status === "REJECTED" ||
+            membership?.status === "SUSPENDED"
+              ? membership.status
+              : null
+          }
         />
       </div>
     </>

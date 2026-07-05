@@ -33,7 +33,7 @@ export default async function CheckgramPage() {
     prisma.hourlyCheckin.count({ where: { programId: program.id } }),
     prisma.checkinConfig.findUnique({ where: { programId: program.id } }),
     prisma.membership.findMany({
-      where: { programId: program.id, role: "OPERATOR" },
+      where: { programId: program.id, role: "OPERATOR", status: "ACTIVE" },
       select: { userId: true },
     }),
   ]);

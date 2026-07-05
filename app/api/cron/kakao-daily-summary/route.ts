@@ -46,11 +46,8 @@ export async function GET(req: Request) {
       continue;
     }
     // KakaoIntegration은 유저 1:1이라 과정 정보가 없다 — 가장 최근 가입한 활성 과정을 기준으로 판단한다.
+    // 과정이 없어도(오늘 일정 섹션만 건너뜀) moneyEnabled 요약은 과정과 무관하므로 그대로 발송한다.
     const program = integ.todayPlanEnabled ? await getCurrentProgram(integ.userId) : null;
-    if (integ.todayPlanEnabled && !program) {
-      skipped++;
-      continue;
-    }
     const tz = integ.user.timezone || "Asia/Seoul";
     const today = todayInTz(tz);
     const monthKey = currentMonthKey(tz);

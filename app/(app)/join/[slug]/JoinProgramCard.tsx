@@ -11,7 +11,7 @@ export function JoinProgramCard({
 }: {
   programId: string;
   programName: string;
-  status: "PENDING" | "REJECTED" | null;
+  status: "PENDING" | "REJECTED" | "SUSPENDED" | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -31,6 +31,14 @@ export function JoinProgramCard({
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-4 text-center text-sm text-slate-600">
         가입 신청이 거절되었어요. 운영자에게 문의해주세요.
+      </div>
+    );
+  }
+
+  if (status === "SUSPENDED") {
+    return (
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 text-center text-sm text-slate-600">
+        비활성화된 멤버십이에요. 운영자에게 문의해주세요.
       </div>
     );
   }

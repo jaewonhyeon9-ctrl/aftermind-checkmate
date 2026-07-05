@@ -21,22 +21,25 @@ export async function getCurrentProgram(userId: string): Promise<ProgramContext 
   return membership?.program ?? null;
 }
 
+/** 로그인 + '현재 과정' 멤버십 확인 (role 포함). 과정이 없으면 새 과정 만들기 페이지로 보낸다. */
+async function requireUserWithMembership() {
+  const user = await requireUser();
+  const membership = await getCurrentMembership(user.id);
+  if (!membership) redirect("/programs/new");
+  return { user, membership };
+}
+
 /** 로그인 + '현재 과정' 확인. 과정이 없으면 새 과정 만들기 페이지로 보낸다. */
 export async function requireUserWithProgram() {
-  const user = await requireUser();
-  const program = await getCurrentProgram(user.id);
-  if (!program) redirect("/programs/new");
-  return { user, program };
+  const { user, membership } = await requireUserWithMembership();
+  return { user, program: membership.program };
 }
 
 /** 위와 동일 + 그 과정의 운영자인지 확인. 아니면 /today로 되돌린다. */
 export async function requireOperatorWithProgram() {
-  const { user, program } = await requireUserWithProgram();
-  const membership = await prisma.membership.findUnique({
-    where: { userId_programId: { userId: user.id, programId: program.id } },
-  });
-  if (!membership || membership.role !== "OPERATOR") redirect("/today");
-  return { user, program, membership };
+  const { user, membership } = await requireUserWithMembership();
+  if (membership.role !== "OPERATOR") redirect("/today");
+  return { user, program: membership.program, membership };
 }
 
 /** 이 과정의 ACTIVE 멤버 userId 목록 (전체 브로드캐스트/과제 부여 대상 선정용). */
@@ -46,4 +49,29 @@ export async function getActiveProgramMemberIds(programId: string): Promise<stri
     select: { userId: true },
   });
   return memberships.map((m) => m.userId);
+}
+
+/** 주어진 userId가 이 과정의 ACTIVE 멤버인지 확인. */
+export async function isActiveMember(userId: string, programId: string): Promise<boolean> {
+  const membership = await prisma.membership.findUnique({
+    where: { userId_programId: { userId, programId } },
+    select: { status: true },
+  });
+  return membership?.status === "ACTIVE";
+}
+
+/** 활성 과정의 ACTIVE 멤버 중 푸시 구독이 있는 유저 — cron 라우트들이 공통으로 재사용. */
+export async function getActivePushableMemberships() {
+  return prisma.membership.findMany({
+    where: {
+      status: "ACTIVE",
+      program: { isActive: true },
+      user: { isActive: true, pushSubscriptions: { some: {} } },
+    },
+    select: {
+      userId: true,
+      programId: true,
+      user: { select: { name: true, timezone: true } },
+    },
+  });
 }
