@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { issueCoin, transferCoin } from "@/lib/coin";
 import { sendPushToUser } from "@/lib/push";
 
@@ -26,11 +27,12 @@ const createPostSchema = z.object({
 });
 
 export async function createPost(input: z.infer<typeof createPostSchema>) {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const parsed = createPostSchema.parse(input);
   await prisma.contributionPost.create({
     data: {
       authorId: user.id,
+      programId: program.id,
       type: parsed.type,
       title: parsed.title.trim(),
       description: parsed.description?.trim() || null,
@@ -247,6 +249,7 @@ export async function completeAndReward(input: z.infer<typeof completeSchema>) {
       fromUserId: user.id,
       toUserId: app.applicantId,
       amount: app.post.coinReward,
+      program: { id: app.post.programId },
       reason,
       memo: `[${app.post.type === "CLASS" ? "수업" : "기여"}] ${app.post.title}`,
       relatedPostId: app.post.id,
@@ -282,7 +285,7 @@ const sendCoinSchema = z.object({
 });
 
 export async function sendCoin(input: z.infer<typeof sendCoinSchema>) {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const parsed = sendCoinSchema.parse(input);
   if (parsed.toUserId === user.id) throw new Error("자기 자신에게는 보낼 수 없습니다");
 
@@ -290,6 +293,7 @@ export async function sendCoin(input: z.infer<typeof sendCoinSchema>) {
     fromUserId: user.id,
     toUserId: parsed.toUserId,
     amount: parsed.amount,
+    program,
     reason: "TRANSFER",
     memo: parsed.memo,
   });
@@ -305,11 +309,12 @@ const issueCoinSchema = z.object({
 
 /** 시스템 발행 — 무한 발행 정책. 누구나 자기/타인에게 발행 가능. */
 export async function issueCoinAction(input: z.infer<typeof issueCoinSchema>) {
-  await requireUser();
+  const { program } = await requireUserWithProgram();
   const parsed = issueCoinSchema.parse(input);
   await issueCoin({
     toUserId: parsed.toUserId,
     amount: parsed.amount,
+    program,
     memo: parsed.memo,
   });
   revalidatePath("/team/coin");

@@ -23,23 +23,30 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const users = await prisma.user.findMany({
+  const memberships = await prisma.membership.findMany({
     where: {
-      isActive: true,
-      pushSubscriptions: { some: {} },
+      status: "ACTIVE",
+      program: { isActive: true },
+      user: { isActive: true, pushSubscriptions: { some: {} } },
     },
-    select: { id: true, name: true, timezone: true },
+    select: {
+      userId: true,
+      programId: true,
+      user: { select: { name: true, timezone: true } },
+    },
   });
 
   let nagged = 0;
   let skipped = 0;
 
-  for (const u of users) {
-    const tz = u.timezone || "Asia/Seoul";
+  for (const m of memberships) {
+    const tz = m.user.timezone || "Asia/Seoul";
     const today = todayInTz(tz);
 
     const entry = await prisma.dailyEntry.findUnique({
-      where: { userId_date: { userId: u.id, date: dateOnly(today) } },
+      where: {
+        userId_programId_date: { userId: m.userId, programId: m.programId, date: dateOnly(today) },
+      },
       include: {
         timelineTasks: { select: { id: true } },
       },
@@ -60,14 +67,14 @@ export async function GET(req: Request) {
       continue;
     }
 
-    await sendPushToUser(u.id, {
+    await sendPushToUser(m.userId, {
       title: "📋 오늘 일정 작성 부탁드려요",
       body: "일정이 등록되지 않았습니다. 성공적인 에프터마인드를 위해 꼭 작성해주세요.",
       url: "/today",
-      tag: `nag-${today}`,
+      tag: `nag-${today}-${m.programId}`,
     });
     nagged++;
   }
 
-  return NextResponse.json({ ok: true, nagged, skipped, totalUsers: users.length });
+  return NextResponse.json({ ok: true, nagged, skipped, totalMemberships: memberships.length });
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { issueCoin } from "@/lib/coin";
 
@@ -30,7 +31,7 @@ function currentKstHour(): Date {
  * 같은 KST 정각 시간대에 이미 작성한 게 있으면 덮어쓰고, 이전 사진은 삭제.
  */
 export async function submitCheckin(formData: FormData) {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
 
   const file = formData.get("photo");
   const message = formData.get("message");
@@ -59,7 +60,7 @@ export async function submitCheckin(formData: FormData) {
 
   // 같은 시간대 기존 체크인이 있으면 이전 사진 삭제 후 덮어쓰기
   const existing = await prisma.hourlyCheckin.findUnique({
-    where: { userId_hour: { userId: user.id, hour } },
+    where: { userId_programId_hour: { userId: user.id, programId: program.id, hour } },
   });
   if (existing) {
     const oldPath = existing.photoUrl.split(`/object/public/${BUCKET}/`)[1];
@@ -72,16 +73,17 @@ export async function submitCheckin(formData: FormData) {
     });
   } else {
     await prisma.hourlyCheckin.create({
-      data: { userId: user.id, hour, photoUrl, message: parsed.message },
+      data: { userId: user.id, programId: program.id, hour, photoUrl, message: parsed.message },
     });
   }
 
-  // 50 에마 보상 — user+hour 당 1회만. 사진 삭제 후 재업로드해도 중복 지급 안 됨.
+  // 50 에마 보상 — user+hour+program 당 1회만. 사진 삭제 후 재업로드해도 중복 지급 안 됨.
   // CoinLedger 메모에 [checkin:<ISO hour>] 태그를 박아두고 그 태그로 dedup.
   const hourTag = `[checkin:${hour.toISOString().slice(0, 13)}:00]`;
   const alreadyRewarded = await prisma.coinLedger.findFirst({
     where: {
       toUserId: user.id,
+      programId: program.id,
       reason: "ISSUE",
       memo: { contains: hourTag },
     },
@@ -93,6 +95,7 @@ export async function submitCheckin(formData: FormData) {
     await issueCoin({
       toUserId: user.id,
       amount: 50,
+      program,
       memo: `📸 ${hourLabel} 체크인 보상 ${hourTag}`,
     }).catch(() => {});
     rewardedEmma = 50;

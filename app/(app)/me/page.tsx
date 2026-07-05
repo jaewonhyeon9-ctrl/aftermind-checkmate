@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { PageHeader } from "@/components/PageHeader";
 import { LogoutButton } from "./LogoutButton";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import {
   todayInTz,
@@ -26,7 +26,7 @@ import { MandalaChart } from "./MandalaChart";
 import type { MandalaData } from "./actions";
 
 export default async function MePage() {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const tz = user.timezone || "Asia/Seoul";
   const today = todayInTz(tz);
   const weekStart = thisWeekStartInTz(tz);
@@ -43,6 +43,7 @@ export default async function MePage() {
       prisma.dailyEntry.findMany({
         where: {
           userId: user.id,
+          programId: program.id,
           date: { gte: dateOnly(sixtyAgo) },
         },
         orderBy: { date: "desc" },
@@ -53,20 +54,41 @@ export default async function MePage() {
       prisma.mustCheck.count({
         where: {
           isCompleted: true,
-          dailyEntry: { userId: user.id, date: { gte: dateOnly(sixtyAgo) } },
+          dailyEntry: { userId: user.id, programId: program.id, date: { gte: dateOnly(sixtyAgo) } },
         },
       }),
       prisma.assignedTaskCompletion.count({
-        where: { userId: user.id, isCompleted: true },
+        where: { userId: user.id, isCompleted: true, task: { programId: program.id } },
       }),
       prisma.periodPlan.findUnique({
-        where: { userId_scope_periodKey: { userId: user.id, scope: "WEEK", periodKey: weekKey } },
+        where: {
+          userId_programId_scope_periodKey: {
+            userId: user.id,
+            programId: program.id,
+            scope: "WEEK",
+            periodKey: weekKey,
+          },
+        },
       }),
       prisma.periodPlan.findUnique({
-        where: { userId_scope_periodKey: { userId: user.id, scope: "MONTH", periodKey: monthKey } },
+        where: {
+          userId_programId_scope_periodKey: {
+            userId: user.id,
+            programId: program.id,
+            scope: "MONTH",
+            periodKey: monthKey,
+          },
+        },
       }),
       prisma.periodPlan.findUnique({
-        where: { userId_scope_periodKey: { userId: user.id, scope: "YEAR", periodKey: yearKey } },
+        where: {
+          userId_programId_scope_periodKey: {
+            userId: user.id,
+            programId: program.id,
+            scope: "YEAR",
+            periodKey: yearKey,
+          },
+        },
       }),
     ]);
 
@@ -77,6 +99,11 @@ export default async function MePage() {
   };
 
   const streak = computeStreak(entries.map((e) => formatDate(e.date)), today);
+
+  const myMembership = await prisma.membership.findUnique({
+    where: { userId_programId: { userId: user.id, programId: program.id } },
+    select: { role: true },
+  });
 
   const recentInsights = entries
     .filter((e) => e.insight)
@@ -102,7 +129,7 @@ export default async function MePage() {
         <ProfileEdit
           name={user.name}
           email={user.email}
-          role={user.role}
+          role={myMembership?.role ?? "MEMBER"}
           finalGoal={user.finalGoal}
           timezone={tz}
         />

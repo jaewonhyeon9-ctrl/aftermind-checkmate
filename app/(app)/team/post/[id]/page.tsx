@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Coins, Calendar, Users } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { ApplicationActions } from "./ApplicationActions";
 import { MyApplicationMessage } from "./MyApplicationMessage";
@@ -10,7 +10,7 @@ import { MyApplicationMessage } from "./MyApplicationMessage";
 export const dynamic = "force-dynamic";
 
 export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const me = await requireUser();
+  const { user: me, program } = await requireUserWithProgram();
   const { id } = await params;
 
   const post = await prisma.contributionPost.findUnique({
@@ -26,7 +26,8 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
     },
   });
 
-  if (!post) notFound();
+  // 다른 과정 소속 게시글 id를 추측해 접근하는 것을 막는다.
+  if (!post || post.programId !== program.id) notFound();
 
   const isAuthor = post.authorId === me.id;
   const myApp = post.applications.find((a) => a.applicantId === me.id);

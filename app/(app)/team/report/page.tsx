@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Sparkles, ArrowDownLeft, ArrowUpRight, Coins } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { todayInTz, dateOnly } from "@/lib/dates";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 type SP = Promise<{ week?: string }>;
 
 export default async function ReportPage({ searchParams }: { searchParams: SP }) {
-  const me = await requireUser();
+  const { user: me, program } = await requireUserWithProgram();
   const tz = me.timezone || "Asia/Seoul";
   const today = todayInTz(tz);
   const sp = await searchParams;
@@ -32,14 +32,14 @@ export default async function ReportPage({ searchParams }: { searchParams: SP })
   const endExcl = dateOnly(nextMonday);
 
   // 데이터 병렬 조회
-  const [members, ledger, dailyEntries, taskCompletions] = await Promise.all([
-    prisma.user.findMany({
-      where: { isActive: true },
-      orderBy: [{ name: "asc" }],
-      select: { id: true, name: true },
+  const [memberships, ledger, dailyEntries, taskCompletions] = await Promise.all([
+    prisma.membership.findMany({
+      where: { programId: program.id, status: "ACTIVE" },
+      orderBy: [{ user: { name: "asc" } }],
+      include: { user: { select: { id: true, name: true } } },
     }),
     prisma.coinLedger.findMany({
-      where: { createdAt: { gte: start, lt: endExcl } },
+      where: { programId: program.id, createdAt: { gte: start, lt: endExcl } },
       include: {
         fromUser: { select: { id: true, name: true } },
         toUser: { select: { id: true, name: true } },
@@ -47,7 +47,7 @@ export default async function ReportPage({ searchParams }: { searchParams: SP })
       orderBy: { createdAt: "desc" },
     }),
     prisma.dailyEntry.findMany({
-      where: { date: { gte: start, lt: endExcl } },
+      where: { programId: program.id, date: { gte: start, lt: endExcl } },
       include: {
         user: { select: { id: true, name: true } },
         timelineTasks: true,
@@ -55,10 +55,11 @@ export default async function ReportPage({ searchParams }: { searchParams: SP })
       },
     }),
     prisma.assignedTaskCompletion.findMany({
-      where: { completedAt: { gte: start, lt: endExcl } },
+      where: { completedAt: { gte: start, lt: endExcl }, task: { programId: program.id } },
       include: { user: { select: { id: true, name: true } } },
     }),
   ]);
+  const members = memberships.map((m) => ({ id: m.user.id, name: m.user.name }));
 
   // ===== 코인 통계 =====
   const totalIssued = ledger.filter((l) => l.fromUserId === null).reduce((s, l) => s + l.amount, 0);

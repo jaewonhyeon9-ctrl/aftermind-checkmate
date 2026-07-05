@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireOperator } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
+import { requireOperatorWithProgram, getActiveProgramMemberIds } from "@/lib/program";
 import { sendPushToUsers } from "@/lib/push";
 
 const createTaskSchema = z
@@ -24,7 +25,7 @@ const createTaskSchema = z
 export async function createAssignedTask(
   input: z.infer<typeof createTaskSchema>
 ) {
-  const operator = await requireOperator();
+  const { user: operator, program } = await requireOperatorWithProgram();
   const parsed = createTaskSchema.parse(input);
 
   const due = parsed.dueDate ? new Date(parsed.dueDate + "T23:59:59.000Z") : null;
@@ -32,11 +33,7 @@ export async function createAssignedTask(
   // 대상 결정
   let targetUserIds: string[];
   if (parsed.scope === "ALL") {
-    const members = await prisma.user.findMany({
-      where: { isActive: true },
-      select: { id: true },
-    });
-    targetUserIds = members.map((m) => m.id);
+    targetUserIds = await getActiveProgramMemberIds(program.id);
   } else {
     targetUserIds = [parsed.assigneeId!];
   }
@@ -45,6 +42,7 @@ export async function createAssignedTask(
     const task = await tx.assignedTask.create({
       data: {
         creatorId: operator.id,
+        programId: program.id,
         scope: parsed.scope,
         title: parsed.title,
         description: parsed.description,
@@ -79,7 +77,7 @@ export async function createAssignedTask(
 }
 
 export async function deleteAssignedTask(taskId: string) {
-  await requireOperator();
+  await requireOperatorWithProgram();
   await prisma.assignedTask.delete({ where: { id: taskId } });
   revalidatePath("/operator");
   revalidatePath("/today");
@@ -96,7 +94,7 @@ const updateTaskSchema = z.object({
 });
 
 export async function updateAssignedTask(input: z.infer<typeof updateTaskSchema>) {
-  await requireOperator();
+  await requireOperatorWithProgram();
   const parsed = updateTaskSchema.parse(input);
   const due = parsed.dueDate ? new Date(parsed.dueDate + "T23:59:59.000Z") : null;
 
@@ -121,35 +119,63 @@ const roleSchema = z.object({
   role: z.enum(["OPERATOR", "MEMBER"]),
 });
 
+/** 이 과정 내에서의 역할(Membership.role) 변경 — 다른 과정 소속엔 영향 없음. */
 export async function updateUserRole(input: z.infer<typeof roleSchema>) {
-  const me = await requireOperator();
+  const { user: me, program } = await requireOperatorWithProgram();
   const parsed = roleSchema.parse(input);
 
   if (parsed.userId === me.id && parsed.role === "MEMBER") {
-    // 마지막 운영자가 자기 자신을 강등하면 안 됨
-    const operatorCount = await prisma.user.count({
-      where: { role: "OPERATOR", isActive: true },
+    // 이 과정의 마지막 운영자가 자기 자신을 강등하면 안 됨
+    const operatorCount = await prisma.membership.count({
+      where: { programId: program.id, role: "OPERATOR", status: "ACTIVE" },
     });
     if (operatorCount <= 1) throw new Error("마지막 운영자는 강등할 수 없어요");
   }
 
-  await prisma.user.update({
-    where: { id: parsed.userId },
+  await prisma.membership.update({
+    where: { userId_programId: { userId: parsed.userId, programId: program.id } },
     data: { role: parsed.role },
   });
   revalidatePath("/operator");
 }
 
+/**
+ * 이 과정에서 팀원을 비활성화/재활성화한다. Membership에는 isActive가 없으므로
+ * status를 ACTIVE ⇄ REJECTED로 토글한다 (다른 과정 소속·User 전역 상태엔 영향 없음).
+ */
 export async function toggleUserActive(userId: string) {
-  await requireOperator();
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error("사용자를 찾을 수 없어요");
-  await prisma.user.update({
-    where: { id: userId },
-    data: { isActive: !user.isActive },
+  const { program } = await requireOperatorWithProgram();
+  const membership = await prisma.membership.findUnique({
+    where: { userId_programId: { userId, programId: program.id } },
+  });
+  if (!membership) throw new Error("팀원을 찾을 수 없어요");
+
+  await prisma.membership.update({
+    where: { userId_programId: { userId, programId: program.id } },
+    data: { status: membership.status === "ACTIVE" ? "REJECTED" : "ACTIVE" },
   });
   revalidatePath("/operator");
   revalidatePath("/feed");
+}
+
+/** 가입 대기 중인 멤버십을 승인한다. */
+export async function approveMembership(userId: string) {
+  const { program } = await requireOperatorWithProgram();
+  await prisma.membership.update({
+    where: { userId_programId: { userId, programId: program.id } },
+    data: { status: "ACTIVE" },
+  });
+  revalidatePath("/operator");
+}
+
+/** 가입 대기 중인 멤버십을 거절한다. */
+export async function rejectMembership(userId: string) {
+  const { program } = await requireOperatorWithProgram();
+  await prisma.membership.update({
+    where: { userId_programId: { userId, programId: program.id } },
+    data: { status: "REJECTED" },
+  });
+  revalidatePath("/operator");
 }
 
 const checkinConfigSchema = z.object({
@@ -159,14 +185,14 @@ const checkinConfigSchema = z.object({
 });
 
 export async function updateCheckinConfig(input: z.infer<typeof checkinConfigSchema>) {
-  await requireOperator();
+  const { program } = await requireOperatorWithProgram();
   const parsed = checkinConfigSchema.parse(input);
   if (parsed.startHour > parsed.endHour) {
     throw new Error("시작 시각이 종료 시각보다 늦을 수 없어요");
   }
   await prisma.checkinConfig.upsert({
-    where: { id: 1 },
-    create: { id: 1, ...parsed },
+    where: { programId: program.id },
+    create: { programId: program.id, ...parsed },
     update: parsed,
   });
   revalidatePath("/operator");
@@ -185,11 +211,12 @@ const announcementSchema = z.object({
 });
 
 export async function createAnnouncement(input: z.infer<typeof announcementSchema>) {
-  const operator = await requireOperator();
+  const { user: operator, program } = await requireOperatorWithProgram();
   const parsed = announcementSchema.parse(input);
 
   const a = await prisma.announcement.create({
     data: {
+      programId: program.id,
       authorId: operator.id,
       title: parsed.title.trim(),
       body: parsed.body?.trim() || null,
@@ -200,20 +227,16 @@ export async function createAnnouncement(input: z.infer<typeof announcementSchem
   });
 
   // 전체 활성 팀원에게 푸시 (운영자 본인 제외)
-  const members = await prisma.user.findMany({
-    where: { isActive: true, id: { not: operator.id } },
-    select: { id: true },
-  });
-  if (members.length > 0) {
-    sendPushToUsers(
-      members.map((m) => m.id),
-      {
-        title: "📢 새 공지사항",
-        body: parsed.title,
-        url: "/today",
-        tag: `announcement-${a.id}`,
-      }
-    ).catch(() => {});
+  const memberIds = (await getActiveProgramMemberIds(program.id)).filter(
+    (id) => id !== operator.id
+  );
+  if (memberIds.length > 0) {
+    sendPushToUsers(memberIds, {
+      title: "📢 새 공지사항",
+      body: parsed.title,
+      url: "/today",
+      tag: `announcement-${a.id}`,
+    }).catch(() => {});
   }
 
   revalidatePath("/operator");
@@ -230,7 +253,7 @@ const updateAnnouncementSchema = z.object({
 });
 
 export async function updateAnnouncement(input: z.infer<typeof updateAnnouncementSchema>) {
-  await requireOperator();
+  await requireOperatorWithProgram();
   const parsed = updateAnnouncementSchema.parse(input);
 
   await prisma.announcement.update({
@@ -249,7 +272,7 @@ export async function updateAnnouncement(input: z.infer<typeof updateAnnouncemen
 }
 
 export async function deleteAnnouncement(id: string) {
-  await requireOperator();
+  await requireOperatorWithProgram();
   await prisma.announcement.delete({ where: { id } });
   revalidatePath("/operator");
   revalidatePath("/today");
@@ -266,27 +289,24 @@ const broadcastTimelineSchema = z.object({
 });
 
 /**
- * 모든 활성 팀원의 지정한 날짜 DailyEntry에 동일한 TimelineTask를 일괄 추가.
+ * 이 과정의 모든 활성 팀원의 지정한 날짜 DailyEntry에 동일한 TimelineTask를 일괄 추가.
  * DailyEntry가 없으면 생성. 작성자 본인을 포함하여 모든 활성 팀원에게 적용됨.
  */
 export async function broadcastTimelineTask(
   input: z.infer<typeof broadcastTimelineSchema>
 ) {
-  const operator = await requireOperator();
+  const { user: operator, program } = await requireOperatorWithProgram();
   const parsed = broadcastTimelineSchema.parse(input);
 
   const dateObj = new Date(parsed.date + "T00:00:00.000Z");
-  const members = await prisma.user.findMany({
-    where: { isActive: true },
-    select: { id: true },
-  });
+  const memberIds = await getActiveProgramMemberIds(program.id);
 
   let created = 0;
   await prisma.$transaction(async (tx) => {
-    for (const m of members) {
+    for (const uid of memberIds) {
       const entry = await tx.dailyEntry.upsert({
-        where: { userId_date: { userId: m.id, date: dateObj } },
-        create: { userId: m.id, date: dateObj },
+        where: { userId_programId_date: { userId: uid, programId: program.id, date: dateObj } },
+        create: { userId: uid, programId: program.id, date: dateObj },
         update: {},
       });
       const last = await tx.timelineTask.findFirst({
@@ -309,7 +329,7 @@ export async function broadcastTimelineTask(
   });
 
   // 본인 제외 푸시
-  const recipientIds = members.map((m) => m.id).filter((id) => id !== operator.id);
+  const recipientIds = memberIds.filter((id) => id !== operator.id);
   if (recipientIds.length > 0) {
     sendPushToUsers(recipientIds, {
       title: "🗓 새 일정",
@@ -327,7 +347,6 @@ export async function broadcastTimelineTask(
 
 export async function toggleAssignedCompletion(completionId: string) {
   // 본인이 자기 과제 체크하는 액션 (운영자 권한 불필요)
-  const { requireUser } = await import("@/lib/auth");
   const me = await requireUser();
 
   const completion = await prisma.assignedTaskCompletion.findUnique({

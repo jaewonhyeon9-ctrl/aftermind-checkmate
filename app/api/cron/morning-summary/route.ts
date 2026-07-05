@@ -21,23 +21,31 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const users = await prisma.user.findMany({
+  // DailyEntry/AssignedTask가 과정별로 스코프되므로 유저가 아닌 (유저, 과정) 멤버십 단위로 순회한다.
+  const memberships = await prisma.membership.findMany({
     where: {
-      isActive: true,
-      pushSubscriptions: { some: {} },
+      status: "ACTIVE",
+      program: { isActive: true },
+      user: { isActive: true, pushSubscriptions: { some: {} } },
     },
-    select: { id: true, name: true, timezone: true },
+    select: {
+      userId: true,
+      programId: true,
+      user: { select: { name: true, timezone: true } },
+    },
   });
 
   let pushed = 0;
 
-  for (const u of users) {
-    const tz = u.timezone || "Asia/Seoul";
+  for (const m of memberships) {
+    const tz = m.user.timezone || "Asia/Seoul";
     const today = todayInTz(tz);
 
     const [entry, pendingTaskCount] = await Promise.all([
       prisma.dailyEntry.findUnique({
-        where: { userId_date: { userId: u.id, date: dateOnly(today) } },
+        where: {
+          userId_programId_date: { userId: m.userId, programId: m.programId, date: dateOnly(today) },
+        },
         include: {
           timelineTasks: { select: { completedAt: true } },
           mustChecks: { select: { isCompleted: true } },
@@ -45,9 +53,12 @@ export async function GET(req: Request) {
       }),
       prisma.assignedTaskCompletion.count({
         where: {
-          userId: u.id,
+          userId: m.userId,
           isCompleted: false,
-          OR: [{ task: { dueDate: null } }, { task: { dueDate: { gte: dateOnly(today) } } }],
+          task: {
+            programId: m.programId,
+            OR: [{ dueDate: null }, { dueDate: { gte: dateOnly(today) } }],
+          },
         },
       }),
     ]);
@@ -56,7 +67,7 @@ export async function GET(req: Request) {
     const doneTimeline = entry?.timelineTasks.filter((t) => t.completedAt !== null).length ?? 0;
     const remainingTimeline = totalTimeline - doneTimeline;
     const totalMust = entry?.mustChecks.length ?? 0;
-    const doneMust = entry?.mustChecks.filter((m) => m.isCompleted).length ?? 0;
+    const doneMust = entry?.mustChecks.filter((mc) => mc.isCompleted).length ?? 0;
 
     const badge = remainingTimeline + pendingTaskCount + (totalMust - doneMust);
 
@@ -69,15 +80,15 @@ export async function GET(req: Request) {
     if (pendingTaskCount > 0) parts.push(`과제 ${pendingTaskCount}개 남음`);
     const body = parts.length > 0 ? parts.join(" · ") : "오늘 할 일이 모두 정리됐어요!";
 
-    await sendPushToUser(u.id, {
-      title: `☀️ ${u.name}님, 좋은 아침이에요`,
+    await sendPushToUser(m.userId, {
+      title: `☀️ ${m.user.name}님, 좋은 아침이에요`,
       body,
       url: "/today",
-      tag: `morning-${today}`,
+      tag: `morning-${today}-${m.programId}`,
       badge,
     });
     pushed++;
   }
 
-  return NextResponse.json({ ok: true, pushed, totalUsers: users.length });
+  return NextResponse.json({ ok: true, pushed, totalMemberships: memberships.length });
 }

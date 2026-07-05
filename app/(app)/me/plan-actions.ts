@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 
 const planSchema = z.object({
   scope: z.enum(["WEEK", "MONTH", "YEAR"]),
@@ -13,21 +13,23 @@ const planSchema = z.object({
 });
 
 export async function upsertPeriodPlan(input: z.infer<typeof planSchema>) {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const parsed = planSchema.parse(input);
 
   const goals = parsed.goals.map((g) => g.trim()).filter(Boolean);
 
   await prisma.periodPlan.upsert({
     where: {
-      userId_scope_periodKey: {
+      userId_programId_scope_periodKey: {
         userId: user.id,
+        programId: program.id,
         scope: parsed.scope,
         periodKey: parsed.periodKey,
       },
     },
     create: {
       userId: user.id,
+      programId: program.id,
       scope: parsed.scope,
       periodKey: parsed.periodKey,
       content: parsed.content?.trim() || null,

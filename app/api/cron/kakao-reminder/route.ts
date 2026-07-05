@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getValidAccessToken, sendToSelf } from "@/lib/kakao";
 import { todayInTz, dateOnly } from "@/lib/dates";
+import { getCurrentProgram } from "@/lib/program";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,12 +43,20 @@ export async function GET(req: Request) {
       skipped++;
       continue;
     }
+    // KakaoIntegration은 유저 1:1이라 과정 정보가 없다 — 가장 최근 가입한 활성 과정을 기준으로 판단한다.
+    const program = await getCurrentProgram(integ.userId);
+    if (!program) {
+      skipped++;
+      continue;
+    }
     const tz = integ.user.timezone || "Asia/Seoul";
     const today = todayInTz(tz);
 
     // 오늘 entry 작성 여부
     const entry = await prisma.dailyEntry.findUnique({
-      where: { userId_date: { userId: integ.userId, date: dateOnly(today) } },
+      where: {
+        userId_programId_date: { userId: integ.userId, programId: program.id, date: dateOnly(today) },
+      },
       select: { id: true },
     });
     if (entry) {

@@ -1,13 +1,14 @@
 import { ArrowDownLeft, ArrowUpRight, Sparkles, Coins } from "lucide-react";
+import type { CoinReason } from "@prisma/client";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { getBalance, getBalances } from "@/lib/coin";
 import { SendCoinForm } from "./SendCoinForm";
 
 export const dynamic = "force-dynamic";
 
-const reasonLabel: Record<string, string> = {
+const reasonLabel: Record<CoinReason, string> = {
   ISSUE: "✨ 발행",
   TRANSFER: "↔️ 송금",
   CONTRIBUTION_REWARD: "🤝 기여 보상",
@@ -15,17 +16,18 @@ const reasonLabel: Record<string, string> = {
 };
 
 export default async function CoinPage() {
-  const me = await requireUser();
+  const { user: me, program } = await requireUserWithProgram();
 
-  const [members, myBalance, recent] = await Promise.all([
-    prisma.user.findMany({
-      where: { isActive: true },
-      orderBy: [{ name: "asc" }],
-      select: { id: true, name: true, role: true },
+  const [memberships, myBalance, recent] = await Promise.all([
+    prisma.membership.findMany({
+      where: { programId: program.id, status: "ACTIVE" },
+      orderBy: [{ user: { name: "asc" } }],
+      include: { user: { select: { id: true, name: true } } },
     }),
-    getBalance(me.id),
+    getBalance(me.id, program.id),
     prisma.coinLedger.findMany({
       where: {
+        programId: program.id,
         OR: [{ fromUserId: me.id }, { toUserId: me.id }],
       },
       include: {
@@ -36,8 +38,9 @@ export default async function CoinPage() {
       take: 50,
     }),
   ]);
+  const members = memberships.map((m) => ({ id: m.user.id, name: m.user.name }));
 
-  const balanceMap = await getBalances(members.map((m) => m.id));
+  const balanceMap = await getBalances(members.map((m) => m.id), program.id);
   const ranked = members
     .map((m) => ({ ...m, balance: balanceMap[m.id] ?? 0 }))
     .sort((a, b) => b.balance - a.balance);

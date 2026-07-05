@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { ArrowLeft, Check, Clock } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { dateOnly, todayInTz } from "@/lib/dates";
 import { EntryForm } from "../../today/EntryForm";
@@ -19,7 +19,7 @@ export default async function EntryByDatePage({
   const { date } = await params;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const tz = user.timezone || "Asia/Seoul";
   const today = todayInTz(tz);
   if (date === today) redirect("/today");
@@ -36,7 +36,9 @@ export default async function EntryByDatePage({
       : format(new Date(date + "T00:00:00"), "M월 d일", { locale: ko });
 
   const entry = await prisma.dailyEntry.findUnique({
-    where: { userId_date: { userId: user.id, date: dateOnly(date) } },
+    where: {
+      userId_programId_date: { userId: user.id, programId: program.id, date: dateOnly(date) },
+    },
     include: {
       timelineTasks: { orderBy: { order: "asc" } },
       mustChecks: { orderBy: { mustIndex: "asc" } },

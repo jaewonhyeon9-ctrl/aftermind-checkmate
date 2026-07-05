@@ -54,6 +54,49 @@ enum CoinReason {
   CLASS_REWARD
 }
 
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+/// 과정(코호트). 에프터마인드 2기, 1인기업가 과정 등 — 앱 하나로 여러 과정을 동시 운영.
+model Program {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships       Membership[]
+  dailyEntries      DailyEntry[]
+  assignedTasks     AssignedTask[]
+  periodPlans       PeriodPlan[]
+  contributionPosts ContributionPost[]
+  coinLedger        CoinLedger[]
+  hourlyCheckins    HourlyCheckin[]
+  announcements     Announcement[]
+  checkinConfig     CheckinConfig?
+}
+
+/// User <-> Program 다대다 소속. role/status 모두 과정별로 독립.
+model Membership {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId String
+  program   Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  role      UserRole         @default(MEMBER)
+  status    MembershipStatus @default(PENDING)
+  joinedAt  DateTime         @default(now())
+
+  @@unique([userId, programId])
+  @@index([programId, status, role])
+  @@index([userId])
+}
+
 model User {
   id         String   @id @default(uuid())
   authId     String   @unique
@@ -62,27 +105,28 @@ model User {
   role       UserRole @default(MEMBER)
   kakaoPhone String?
   isActive   Boolean  @default(true)
-  finalGoal    String?  // 에프터마인드 2기 최종 목표
+  finalGoal    String?  // 최종 목표
   mandalaChart Json?    // 만다라트 차트 (9x9 그리드)
   timezone     String   @default("Asia/Seoul")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  dailyEntries           DailyEntry[]
-  createdTasks           AssignedTask[]           @relation("TaskCreator")
-  taskCompletions        AssignedTaskCompletion[] @relation("TaskAssignee")
-  pushSubscriptions      PushSubscription[]
-  periodPlans            PeriodPlan[]
-  transactions           Transaction[]
-  contributionPosts      ContributionPost[]        @relation("ContributionAuthor")
-  applications           ContributionApplication[] @relation("Applicant")
-  coinsSent              CoinLedger[]              @relation("CoinSender")
-  coinsReceived          CoinLedger[]              @relation("CoinReceiver")
-  kakaoIntegration       KakaoIntegration?
-  hourlyCheckins         HourlyCheckin[]
-  recurringExpenses      RecurringExpense[]
-  recurringChecks        RecurringCheck[]
-  announcements          Announcement[]            @relation("AnnouncementAuthor")
+  memberships             Membership[]
+  dailyEntries            DailyEntry[]
+  createdTasks            AssignedTask[]           @relation("TaskCreator")
+  taskCompletions         AssignedTaskCompletion[] @relation("TaskAssignee")
+  pushSubscriptions       PushSubscription[]
+  periodPlans             PeriodPlan[]
+  transactions            Transaction[]
+  contributionPosts       ContributionPost[]        @relation("ContributionAuthor")
+  applications            ContributionApplication[] @relation("Applicant")
+  coinsSent               CoinLedger[]              @relation("CoinSender")
+  coinsReceived           CoinLedger[]              @relation("CoinReceiver")
+  kakaoIntegration        KakaoIntegration?
+  hourlyCheckins          HourlyCheckin[]
+  recurringExpenses       RecurringExpense[]
+  recurringChecks         RecurringCheck[]
+  announcements           Announcement[]            @relation("AnnouncementAuthor")
 
   @@index([role])
 }
@@ -91,6 +135,8 @@ model User {
 /// pinned=true면 /today 상단 고정. startAt/endAt 으로 표시 기간 제한 가능 (nullable이면 무제한).
 model Announcement {
   id        String    @id @default(uuid())
+  programId String
+  program   Program   @relation(fields: [programId], references: [id], onDelete: Restrict)
   authorId  String
   author    User      @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   title     String
@@ -101,7 +147,7 @@ model Announcement {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  @@index([pinned, createdAt])
+  @@index([programId, pinned, createdAt])
   @@index([startAt, endAt])
 }
 
@@ -145,6 +191,8 @@ model PeriodPlan {
   id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId String
+  program   Program   @relation(fields: [programId], references: [id], onDelete: Restrict)
   scope     PlanScope
   periodKey String    // "2026-W18", "2026-04", "2026"
   content   String?
@@ -152,8 +200,8 @@ model PeriodPlan {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  @@unique([userId, scope, periodKey])
-  @@index([scope, periodKey])
+  @@unique([userId, programId, scope, periodKey])
+  @@index([programId, scope, periodKey])
 }
 
 model PushSubscription {
@@ -173,6 +221,8 @@ model DailyEntry {
   id            String   @id @default(uuid())
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program  @relation(fields: [programId], references: [id], onDelete: Restrict)
   date          DateTime @db.Date
 
   wakeUpTime    String?
@@ -200,8 +250,8 @@ model DailyEntry {
   timelineTasks TimelineTask[]
   mustChecks    MustCheck[]
 
-  @@unique([userId, date])
-  @@index([date])
+  @@unique([userId, programId, date])
+  @@index([programId, date])
 }
 
 model TimelineTask {
@@ -246,6 +296,8 @@ model AssignedTask {
   id          String          @id @default(uuid())
   creatorId   String
   creator     User            @relation("TaskCreator", fields: [creatorId], references: [id])
+  programId   String
+  program     Program         @relation(fields: [programId], references: [id], onDelete: Restrict)
   scope       AssignmentScope
   title       String
   description String?
@@ -257,7 +309,7 @@ model AssignedTask {
 
   completions AssignedTaskCompletion[]
 
-  @@index([dueDate])
+  @@index([programId, dueDate])
 }
 
 model AssignedTaskCompletion {
@@ -279,6 +331,8 @@ model ContributionPost {
   id            String              @id @default(uuid())
   authorId      String
   author        User                @relation("ContributionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program             @relation(fields: [programId], references: [id], onDelete: Restrict)
   type          ContributionType
   title         String
   description   String?
@@ -294,7 +348,7 @@ model ContributionPost {
   applications  ContributionApplication[]
   coinLedger    CoinLedger[]
 
-  @@index([type, status])
+  @@index([programId, type, status])
   @@index([authorId])
 }
 
@@ -320,6 +374,8 @@ model CoinLedger {
   fromUser      User?             @relation("CoinSender", fields: [fromUserId], references: [id], onDelete: SetNull)
   toUserId      String
   toUser        User              @relation("CoinReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program           @relation(fields: [programId], references: [id], onDelete: Restrict)
   amount        Int
   reason        CoinReason
   memo          String?
@@ -327,9 +383,9 @@ model CoinLedger {
   relatedPost   ContributionPost? @relation(fields: [relatedPostId], references: [id], onDelete: SetNull)
   createdAt     DateTime          @default(now())
 
-  @@index([toUserId, createdAt])
-  @@index([fromUserId, createdAt])
-  @@index([createdAt])
+  @@index([programId, toUserId, createdAt])
+  @@index([programId, fromUserId, createdAt])
+  @@index([programId, createdAt])
 }
 
 /// 매시간 정각 체크인. 사진 한 장 + 짧은 글(인스타 스타일 오버레이).
@@ -339,19 +395,23 @@ model HourlyCheckin {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId String
+  program   Program  @relation(fields: [programId], references: [id], onDelete: Restrict)
   hour      DateTime @db.Timestamptz
   photoUrl  String
   message   String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, hour])
-  @@index([hour])
+  @@unique([userId, programId, hour])
+  @@index([programId, hour])
 }
 
-/// 체크인 알림 발송 시간대 설정 (싱글톤, id=1 한 row).
+/// 체크인 알림 발송 시간대 설정. 과정별로 1 row (programId unique).
 model CheckinConfig {
-  id        Int      @id @default(1)
+  id        Int      @id @default(autoincrement())
+  programId String   @unique
+  program   Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
   enabled   Boolean  @default(true)
   startHour Int      @default(9)   // 정각 알림 시작 시각 (0-23)
   endHour   Int      @default(22)  // 정각 알림 종료 시각 (포함)

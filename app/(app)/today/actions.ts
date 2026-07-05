@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { todayInTz } from "@/lib/dates";
 import { issueCoin } from "@/lib/coin";
 
@@ -35,7 +36,7 @@ const dailyEntrySchema = z.object({
 export type DailyEntryInput = z.infer<typeof dailyEntrySchema>;
 
 export async function saveDailyEntry(input: DailyEntryInput) {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
   const parsed = dailyEntrySchema.parse(input);
 
   const date = new Date(parsed.date + "T00:00:00.000Z");
@@ -45,9 +46,10 @@ export async function saveDailyEntry(input: DailyEntryInput) {
 
   const entry = await prisma.$transaction(async (tx) => {
     const e = await tx.dailyEntry.upsert({
-      where: { userId_date: { userId: user.id, date } },
+      where: { userId_programId_date: { userId: user.id, programId: program.id, date } },
       create: {
         userId: user.id,
+        programId: program.id,
         date,
         wakeUpTime: parsed.wakeUpTime,
         workStartTime: parsed.workStartTime,
@@ -171,6 +173,7 @@ export async function saveDailyEntry(input: DailyEntryInput) {
         await issueCoin({
           toUserId: user.id,
           amount: PLAN_BONUS_AMOUNT,
+          program,
           memo: `${parsed.date} 계획 완성 보상 (전날 미리)`,
         });
         planBonusAwarded = true;
@@ -275,13 +278,14 @@ export async function copyPreviousDayTasks(dailyEntryId: string) {
 
   const entry = await prisma.dailyEntry.findUnique({
     where: { id: dailyEntryId },
-    select: { id: true, userId: true, date: true },
+    select: { id: true, userId: true, programId: true, date: true },
   });
   if (!entry || entry.userId !== user.id) throw new Error("권한 없음");
 
   const prev = await prisma.dailyEntry.findFirst({
     where: {
       userId: user.id,
+      programId: entry.programId,
       date: { lt: entry.date },
       timelineTasks: { some: {} },
     },
@@ -331,7 +335,7 @@ export async function ensureRoutinesCopied(dailyEntryId: string): Promise<number
 
   const entry = await prisma.dailyEntry.findUnique({
     where: { id: dailyEntryId },
-    select: { id: true, userId: true, date: true },
+    select: { id: true, userId: true, programId: true, date: true },
   });
   if (!entry || entry.userId !== user.id) return 0;
 
@@ -344,6 +348,7 @@ export async function ensureRoutinesCopied(dailyEntryId: string): Promise<number
   const lastRoutineEntry = await prisma.dailyEntry.findFirst({
     where: {
       userId: user.id,
+      programId: entry.programId,
       date: { lt: entry.date },
       timelineTasks: { some: { isRoutine: true } },
     },

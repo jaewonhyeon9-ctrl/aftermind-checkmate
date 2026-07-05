@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Camera } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { CheckinForm } from "../checkin/CheckinForm";
 import { CheckinCard } from "../checkin/CheckinCard";
@@ -17,21 +17,27 @@ function currentKstHour(): Date {
 }
 
 export default async function CheckgramPage() {
-  const me = await requireUser();
+  const { user: me, program } = await requireUserWithProgram();
   const hour = currentKstHour();
 
-  const [myThisHour, feed, totalCount, config] = await Promise.all([
+  const [myThisHour, feed, totalCount, config, operatorMemberships] = await Promise.all([
     prisma.hourlyCheckin.findUnique({
-      where: { userId_hour: { userId: me.id, hour } },
+      where: { userId_programId_hour: { userId: me.id, programId: program.id, hour } },
     }),
     prisma.hourlyCheckin.findMany({
+      where: { programId: program.id },
       orderBy: { hour: "desc" },
-      include: { user: { select: { id: true, name: true, role: true } } },
+      include: { user: { select: { id: true, name: true } } },
       take: 100,
     }),
-    prisma.hourlyCheckin.count(),
-    prisma.checkinConfig.findUnique({ where: { id: 1 } }),
+    prisma.hourlyCheckin.count({ where: { programId: program.id } }),
+    prisma.checkinConfig.findUnique({ where: { programId: program.id } }),
+    prisma.membership.findMany({
+      where: { programId: program.id, role: "OPERATOR" },
+      select: { userId: true },
+    }),
   ]);
+  const operatorIds = new Set(operatorMemberships.map((m) => m.userId));
 
   const hourLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Seoul",
@@ -132,7 +138,7 @@ export default async function CheckgramPage() {
                         key={c.id}
                         id={c.id}
                         userName={c.user.name}
-                        isOperator={c.user.role === "OPERATOR"}
+                        isOperator={operatorIds.has(c.userId)}
                         isMe={c.userId === me.id}
                         hour={c.hour}
                         photoUrl={c.photoUrl}

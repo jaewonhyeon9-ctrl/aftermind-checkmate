@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { CalendarPlus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { todayInTz, yesterdayInTz, tomorrowInTz, dateOnly } from "@/lib/dates";
 import { EntryForm } from "./EntryForm";
@@ -18,7 +18,7 @@ import { WelcomeInstallPrompt } from "@/components/InstallPrompt";
 import { BadgeManager } from "@/components/BadgeManager";
 
 export default async function TodayPage() {
-  const user = await requireUser();
+  const { user, program } = await requireUserWithProgram();
 
   const tz = user.timezone || "Asia/Seoul";
   const today = todayInTz(tz);
@@ -28,18 +28,26 @@ export default async function TodayPage() {
   const nowDate = new Date();
   const [todayEntry, yEntry, myAssignments, todayTransactions, announcements] = await Promise.all([
     prisma.dailyEntry.findUnique({
-      where: { userId_date: { userId: user.id, date: dateOnly(today) } },
+      where: {
+        userId_programId_date: { userId: user.id, programId: program.id, date: dateOnly(today) },
+      },
       include: {
         timelineTasks: { orderBy: { order: "asc" } },
         mustChecks: { orderBy: { mustIndex: "asc" } },
       },
     }),
     prisma.dailyEntry.findUnique({
-      where: { userId_date: { userId: user.id, date: dateOnly(yesterday) } },
+      where: {
+        userId_programId_date: {
+          userId: user.id,
+          programId: program.id,
+          date: dateOnly(yesterday),
+        },
+      },
       include: { mustChecks: { orderBy: { mustIndex: "asc" } } },
     }),
     prisma.assignedTaskCompletion.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, task: { programId: program.id } },
       orderBy: [{ isCompleted: "asc" }, { task: { createdAt: "desc" } }],
       include: {
         task: {
@@ -64,6 +72,7 @@ export default async function TodayPage() {
     prisma.announcement.findMany({
       where: {
         AND: [
+          { programId: program.id },
           { OR: [{ startAt: null }, { startAt: { lte: nowDate } }] },
           { OR: [{ endAt: null }, { endAt: { gte: nowDate } }] },
         ],

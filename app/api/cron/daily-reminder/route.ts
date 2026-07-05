@@ -22,28 +22,32 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 활성 사용자 + 푸시 구독 있는 사람만
-  const users = await prisma.user.findMany({
+  // 활성 멤버십(과정별) + 푸시 구독 있는 사람만. DailyEntry가 과정별로 스코프되므로
+  // 유저 단위가 아니라 (유저, 과정) 멤버십 단위로 순회한다.
+  const memberships = await prisma.membership.findMany({
     where: {
-      isActive: true,
-      pushSubscriptions: { some: {} },
+      status: "ACTIVE",
+      program: { isActive: true },
+      user: { isActive: true, pushSubscriptions: { some: {} } },
     },
     select: {
-      id: true,
-      name: true,
-      timezone: true,
+      userId: true,
+      programId: true,
+      user: { select: { name: true, timezone: true } },
     },
   });
 
   let reminded = 0;
   let summarized = 0;
 
-  for (const u of users) {
-    const tz = u.timezone || "Asia/Seoul";
+  for (const m of memberships) {
+    const tz = m.user.timezone || "Asia/Seoul";
     const today = todayInTz(tz);
 
     const entry = await prisma.dailyEntry.findUnique({
-      where: { userId_date: { userId: u.id, date: dateOnly(today) } },
+      where: {
+        userId_programId_date: { userId: m.userId, programId: m.programId, date: dateOnly(today) },
+      },
       include: {
         timelineTasks: { select: { completedAt: true, isOnTime: true } },
         mustChecks: { select: { isCompleted: true } },
@@ -52,11 +56,11 @@ export async function GET(req: Request) {
 
     if (!entry) {
       // 미작성자 → 리마인더
-      await sendPushToUsers([u.id], {
+      await sendPushToUsers([m.userId], {
         title: "🌙 데일리 리포트 작성",
-        body: `${u.name}님, 아직 오늘의 리포트를 작성 안 했어요. 짧게라도 남겨보세요.`,
+        body: `${m.user.name}님, 아직 오늘의 리포트를 작성 안 했어요. 짧게라도 남겨보세요.`,
         url: "/today",
-        tag: "daily-reminder",
+        tag: `daily-reminder-${m.programId}`,
       });
       reminded++;
       continue;
@@ -77,15 +81,15 @@ export async function GET(req: Request) {
     if (totalMust > 0) parts.push(`Must ${doneMust}/${totalMust}`);
     const body = parts.length > 0 ? parts.join(" · ") : "오늘 잘했어요!";
 
-    await sendPushToUsers([u.id], {
-      title: `🌙 ${u.name}님 오늘 결산`,
+    await sendPushToUsers([m.userId], {
+      title: `🌙 ${m.user.name}님 오늘 결산`,
       body,
       url: "/today",
-      tag: `evening-${today}`,
+      tag: `evening-${today}-${m.programId}`,
       badge: remaining,
     });
     summarized++;
   }
 
-  return NextResponse.json({ ok: true, reminded, summarized, totalUsers: users.length });
+  return NextResponse.json({ ok: true, reminded, summarized, totalMemberships: memberships.length });
 }

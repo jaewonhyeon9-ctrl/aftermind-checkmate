@@ -64,16 +64,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "사용자 생성 실패" }, { status: 500 });
   }
 
-  // User row 즉시 부트스트랩 (첫 가입자 = OPERATOR)
-  const userCount = await prisma.user.count();
-  const role = userCount === 0 ? "OPERATOR" : "MEMBER";
+  // User row 즉시 부트스트랩 (과정 소속/권한은 Membership에서 별도로 결정됨)
   await prisma.user.upsert({
     where: { authId: data.user.id },
     create: {
       authId: data.user.id,
       email,
       name: name.trim(),
-      role,
     },
     update: { email, name: name.trim() },
   });

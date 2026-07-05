@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { PostForm } from "./PostForm";
 import { PostCard, type PostCardData } from "./PostCard";
@@ -7,10 +7,10 @@ import { PostCard, type PostCardData } from "./PostCard";
 export const dynamic = "force-dynamic";
 
 export default async function ContributePage() {
-  const me = await requireUser();
+  const { user: me, program } = await requireUserWithProgram();
 
   const posts = await prisma.contributionPost.findMany({
-    where: { type: "SKILL" },
+    where: { type: "SKILL", programId: program.id },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: {
       author: { select: { id: true, name: true } },
