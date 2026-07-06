@@ -3,38 +3,45 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Check, Clock } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { requireUser } from "@/lib/auth";
+import { requireUserWithProgram } from "@/lib/program";
 import { prisma } from "@/lib/prisma";
 import { todayInTz, tomorrowInTz, dateOnly } from "@/lib/dates";
 import { Timeline } from "../today/Timeline";
 
 export default async function FeedPage() {
-  const me = await requireUser();
+  const { user: me, program } = await requireUserWithProgram();
   const tz = me.timezone || "Asia/Seoul";
   const today = todayInTz(tz);
   const tomorrow = tomorrowInTz(tz);
   const todayDate = dateOnly(today);
 
-  const [members, assignmentsToday] = await Promise.all([
-    prisma.user.findMany({
-      where: { isActive: true },
-      orderBy: [{ role: "desc" }, { name: "asc" }],
+  const [memberships, assignmentsToday] = await Promise.all([
+    prisma.membership.findMany({
+      where: { programId: program.id, status: "ACTIVE", user: { isActive: true } },
+      orderBy: [{ role: "desc" }, { user: { name: "asc" } }],
       include: {
-        dailyEntries: {
-          where: { date: todayDate },
-          include: {
-            timelineTasks: { orderBy: { order: "asc" } },
-            mustChecks: { orderBy: { mustIndex: "asc" } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            finalGoal: true,
+            dailyEntries: {
+              where: { date: todayDate, programId: program.id },
+              include: {
+                timelineTasks: { orderBy: { order: "asc" } },
+                mustChecks: { orderBy: { mustIndex: "asc" } },
+              },
+            },
           },
         },
       },
     }),
     prisma.assignedTaskCompletion.findMany({
       where: {
-        OR: [
-          { task: { dueDate: null } },
-          { task: { dueDate: { gte: todayDate } } },
-        ],
+        task: {
+          programId: program.id,
+          OR: [{ dueDate: null }, { dueDate: { gte: todayDate } }],
+        },
       },
       select: {
         userId: true,
@@ -42,6 +49,8 @@ export default async function FeedPage() {
       },
     }),
   ]);
+
+  const members = memberships.map((m) => ({ ...m.user, role: m.role }));
 
   // userId → { total, done }
   const assignByUser = new Map<string, { total: number; done: number }>();

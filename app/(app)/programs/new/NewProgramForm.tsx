@@ -38,15 +38,18 @@ export function NewProgramForm() {
       return;
     }
     startTransition(async () => {
-      try {
-        await createProgram({ name: name.trim(), slug });
-        // 클라이언트 라우터 전환 대신 하드 네비게이션 — /today 렌더가 느려도
-        // 이 버튼이 "만드는 중..."에 멈춰있는 것처럼 보이지 않는다.
-        setCreated(true);
-        window.location.assign("/today");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "생성 실패");
+      const result = await createProgram({ name: name.trim(), slug }).catch(() => ({
+        ok: false as const,
+        error: "문제가 발생했어요. 잠시 후 다시 시도해주세요",
+      }));
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
+      // 클라이언트 라우터 전환 대신 하드 네비게이션 — /today 렌더가 느려도
+      // 이 버튼이 "만드는 중..."에 멈춰있는 것처럼 보이지 않는다.
+      setCreated(true);
+      window.location.assign("/today");
     });
   }
 
