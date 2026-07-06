@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { createProgram } from "./actions";
 
 function slugify(v: string) {
@@ -15,8 +14,8 @@ function slugify(v: string) {
 }
 
 export function NewProgramForm() {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [created, setCreated] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -41,8 +40,10 @@ export function NewProgramForm() {
     startTransition(async () => {
       try {
         await createProgram({ name: name.trim(), slug });
-        router.push("/today");
-        router.refresh();
+        // 클라이언트 라우터 전환 대신 하드 네비게이션 — /today 렌더가 느려도
+        // 이 버튼이 "만드는 중..."에 멈춰있는 것처럼 보이지 않는다.
+        setCreated(true);
+        window.location.assign("/today");
       } catch (e) {
         setError(e instanceof Error ? e.message : "생성 실패");
       }
@@ -78,10 +79,10 @@ export function NewProgramForm() {
       {error && <p className="text-xs text-red-600">{error}</p>}
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || created}
         className="w-full rounded-lg bg-gradient-to-br from-slate-900 to-slate-700 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 disabled:opacity-50"
       >
-        {pending ? "만드는 중…" : "팀 만들기"}
+        {created ? "완료! 이동 중…" : pending ? "만드는 중…" : "팀 만들기"}
       </button>
     </form>
   );
