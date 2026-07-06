@@ -4,7 +4,7 @@ import { InAppBrowserBanner } from "@/components/InAppBrowserBanner";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "에프터마인드2기 체크메이트",
+  title: "체크메이트",
   description: "타임라인 기반 데일리 미션 + 팀 그로스 앱",
   manifest: "/manifest.json",
   appleWebApp: {

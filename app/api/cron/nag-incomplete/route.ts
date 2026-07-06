@@ -59,7 +59,7 @@ export async function GET(req: Request) {
 
     await sendPushToUser(m.userId, {
       title: "📋 오늘 일정 작성 부탁드려요",
-      body: "일정이 등록되지 않았습니다. 성공적인 에프터마인드를 위해 꼭 작성해주세요.",
+      body: "일정이 등록되지 않았습니다. 성공적인 하루를 위해 꼭 작성해주세요.",
       url: "/today",
       tag: `nag-${today}-${m.programId}`,
     });

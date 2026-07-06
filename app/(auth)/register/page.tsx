@@ -11,7 +11,7 @@ export default function RegisterPage() {
         <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-br from-slate-900 to-slate-600 bg-clip-text text-transparent">
           회원가입
         </h1>
-        <p className="text-sm text-slate-500 font-medium">에프터마인드 2기 체크메이트</p>
+        <p className="text-sm text-slate-500 font-medium">체크메이트</p>
       </div>
       <RegisterForm />
       <p className="text-sm text-center text-slate-500">

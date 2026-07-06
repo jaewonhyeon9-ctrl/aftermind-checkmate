@@ -32,7 +32,7 @@ export function ShareSummaryButton({
       `이번 주 — ${pct(stats.week)}% (${stats.week.done}/${stats.week.total}) · 작성 ${stats.week.entries}일 · 온타임 ${stats.week.onTime}`,
       `이번 달 — ${pct(stats.month)}% (${stats.month.done}/${stats.month.total}) · 작성 ${stats.month.entries}일 · 온타임 ${stats.month.onTime}`,
       ``,
-      `#에프터마인드2기 #체크메이트`,
+      `#체크메이트`,
     ].join("\n");
   }
 

@@ -74,7 +74,7 @@ export function ProfileEdit({ name, email, role, finalGoal, timezone }: Props) {
         <div className="flex items-center gap-2 text-amber-300">
           <Target size={14} />
           <p className="text-[11px] font-semibold tracking-wider uppercase">
-            에프터마인드 2기 최종 목표
+            최종 목표
           </p>
         </div>
         {finalGoal ? (
@@ -120,7 +120,7 @@ export function ProfileEdit({ name, email, role, finalGoal, timezone }: Props) {
 
             <label className="block">
               <span className="text-xs font-medium text-slate-700">
-                에프터마인드 2기 최종 목표
+                최종 목표
               </span>
               <textarea
                 rows={4}
